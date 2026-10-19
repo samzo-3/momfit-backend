@@ -53,7 +53,7 @@ async def _handle_validation_error(
     for item in exc.errors():
         # loc는 ("body", "password") 형태이며 맨 앞의 요청 위치는 제외한다.
         name = ".".join(str(part) for part in item["loc"][1:]) or str(item["loc"][0])
-        fields.setdefault(name, item["msg"])
+        fields.setdefault(name, item["msg"].removeprefix("Value error, "))
     return error_response(
         422, "VALIDATION_ERROR", "요청 값이 올바르지 않습니다.", fields
     )

@@ -1,12 +1,23 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from core.errors import AppError, register_exception_handlers
 
 
 class _Body(BaseModel):
     password: str = Field(min_length=8)
+
+
+class _Nickname(BaseModel):
+    nickname: str
+
+    @field_validator("nickname")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("닉네임을 입력해 주세요.")
+        return value
 
 
 def _create_app() -> FastAPI:
@@ -23,6 +34,10 @@ def _create_app() -> FastAPI:
 
     @app.post("/validate")
     def validate(body: _Body) -> None:
+        return None
+
+    @app.post("/nickname")
+    def nickname(body: _Nickname) -> None:
         return None
 
     return app
@@ -71,3 +86,9 @@ def test_존재하지_않는_경로도_공통_형식이다() -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "HTTP_404"
+
+
+def test_검증_메시지에서_pydantic_접두사를_제거한다() -> None:
+    response = client.post("/nickname", json={"nickname": "  "})
+
+    assert response.json()["error"]["fields"] == {"nickname": "닉네임을 입력해 주세요."}
