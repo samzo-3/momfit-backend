@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from models.email_verification import EmailVerification
@@ -70,3 +70,8 @@ def count_by_ip_since(db: Session, ip: str, since: datetime) -> int:
         .select_from(EmailVerification)
         .where(EmailVerification.ip == ip, EmailVerification.created_at >= since)
     ) or 0
+
+
+def delete_by_email(db: Session, email: str) -> None:
+    """이메일로 발급된 인증 코드 기록을 모두 삭제한다. 회원 탈퇴 때 쓴다."""
+    db.execute(delete(EmailVerification).where(EmailVerification.email == email))

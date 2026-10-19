@@ -1,4 +1,4 @@
-"""사용자 프로필 조회·수정 비즈니스 로직."""
+"""사용자 프로필 조회·수정, 회원 탈퇴 비즈니스 로직."""
 
 from datetime import date
 
@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 
 from core.clock import today_kst
 from models.user import User
+from repositories import (
+    email_verification_repository,
+    refresh_token_repository,
+    user_repository,
+)
 from schemas.user import UpdateProfileRequest, UserResponse
 from services.pregnancy import calculate_pregnancy_week, validate_due_date
 
@@ -44,3 +49,11 @@ def update_profile(
     db.refresh(user)
     return to_user_response(user, today)
 
+
+def delete_account(db: Session, user: User) -> None:
+    """회원을 탈퇴시킨다. 로그인 수단, refresh 토큰, 이메일 인증 기록을 함께 삭제한다."""
+    refresh_token_repository.delete_all_for_user(db, user.id)
+    if user.email:
+        email_verification_repository.delete_by_email(db, user.email)
+    user_repository.delete(db, user)
+    db.commit()

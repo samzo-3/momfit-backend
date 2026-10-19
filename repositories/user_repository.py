@@ -21,3 +21,8 @@ def get_by_id(db: Session, user_id: int) -> User | None:
 def get_by_email(db: Session, email: str) -> User | None:
     """이메일로 사용자를 조회한다."""
     return db.scalar(select(User).where(User.email == email))
+
+
+def delete(db: Session, user: User) -> None:
+    """사용자를 삭제한다. 로그인 수단(auth_identities)은 ORM cascade로 함께 삭제된다."""
+    db.delete(user)

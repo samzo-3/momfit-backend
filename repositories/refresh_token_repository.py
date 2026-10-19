@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from models.refresh_token import RefreshToken
@@ -40,3 +40,8 @@ def revoke_all_for_user(db: Session, user_id: int, now: datetime) -> None:
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
         .values(revoked_at=now)
     )
+
+
+def delete_all_for_user(db: Session, user_id: int) -> None:
+    """사용자의 refresh 토큰을 모두 삭제한다. 회원 탈퇴 때 쓴다."""
+    db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
