@@ -28,6 +28,11 @@ class User(Base):
     terms_agreed_at: Mapped[datetime | None] = mapped_column(DateTime)
     health_data_agreed_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    # 회원정보를 마지막으로 수정한 시각. users 행이 UPDATE될 때마다 갱신된다.
+    # (로그인·토큰 갱신처럼 users를 건드리지 않는 동작은 갱신하지 않는다.)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
 
     identities: Mapped[list["AuthIdentity"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
