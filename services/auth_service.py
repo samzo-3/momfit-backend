@@ -43,7 +43,7 @@ def _refresh_invalid() -> AppError:
     return AppError(401, "REFRESH_INVALID", "다시 로그인해 주세요.")
 
 
-def _issue_tokens(
+def issue_tokens(
     db: Session, user_id: int, family_id: str, now: datetime
 ) -> IssuedTokens:
     refresh_token = generate_refresh_token()
@@ -111,7 +111,7 @@ def signup(
                 password_hash=hash_password(request.password),
             ),
         )
-        tokens = _issue_tokens(db, user.id, str(uuid.uuid4()), now)
+        tokens = issue_tokens(db, user.id, str(uuid.uuid4()), now)
         db.commit()
     except IntegrityError:
         # 위의 중복 확인과 저장 사이에 같은 값으로 가입한 요청이 끼어든 경우
@@ -135,7 +135,7 @@ def login(db: Session, request: LoginRequest, now: datetime | None = None) -> Is
             401, "INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다."
         )
 
-    tokens = _issue_tokens(db, identity.user_id, str(uuid.uuid4()), now)
+    tokens = issue_tokens(db, identity.user_id, str(uuid.uuid4()), now)
     db.commit()
     return tokens
 
@@ -162,7 +162,7 @@ def refresh(db: Session, refresh_token: str | None, now: datetime | None = None)
         raise _refresh_invalid()
 
     stored.revoked_at = now
-    tokens = _issue_tokens(db, stored.user_id, stored.family_id, now)
+    tokens = issue_tokens(db, stored.user_id, stored.family_id, now)
     db.commit()
     return tokens
 
