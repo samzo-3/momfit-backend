@@ -1,0 +1,28 @@
+"""라우터에서 공통으로 쓰는 인증 의존성."""
+
+from fastapi import Depends, Request
+from sqlalchemy.orm import Session
+
+from core.errors import AppError
+from core.security import decode_access_token
+from db.session import get_db
+from models.user import User
+from repositories import user_repository
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """Authorization: Bearer 헤더의 access 토큰으로 현재 사용자를 조회한다."""
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise AppError(401, "UNAUTHORIZED", "인증이 필요합니다.")
+    user = user_repository.get_by_id(db, decode_access_token(token))
+    if user is None:
+        raise AppError(401, "UNAUTHORIZED", "인증이 필요합니다.")
+    return user
+
+
+def get_onboarded_user(user: User = Depends(get_current_user)) -> User:
+    """온보딩을 마친 사용자만 통과시킨다. /users/me, /auth/* 이외의 보호 API에서 사용한다."""
+    if not user.onboarding_completed:
+        raise AppError(403, "ONBOARDING_REQUIRED", "온보딩을 먼저 완료해 주세요.")
+    return user
