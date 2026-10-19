@@ -12,7 +12,7 @@ from models.auth_identity import KAKAO_PROVIDER, AuthIdentity
 from models.user import User
 from repositories import auth_identity_repository, user_repository
 from services.auth_service import IssuedTokens, issue_tokens
-from services.kakao_client import KakaoClient, KakaoProfile
+from services.kakao_client import KakaoClient, KakaoError, KakaoProfile
 
 logger = logging.getLogger(__name__)
 
@@ -68,5 +68,7 @@ def unlink_best_effort(client: KakaoClient, kakao_user_id: str) -> None:
     """
     try:
         client.unlink(kakao_user_id)
+    except KakaoError as error:
+        logger.warning("카카오 연결 해제에 실패했습니다: %s", error)
     except Exception:
-        logger.warning("카카오 연결 해제에 실패했습니다.", exc_info=False)
+        logger.warning("카카오 연결 해제 중 예상하지 못한 오류가 발생했습니다.")

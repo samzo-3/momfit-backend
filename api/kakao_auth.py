@@ -40,8 +40,8 @@ def kakao_login(client: KakaoClient = Depends(get_kakao_client)) -> RedirectResp
     state = secrets.token_urlsafe(32)
     try:
         url = client.authorize_url(state)
-    except KakaoError:
-        logger.error("카카오 로그인이 설정되지 않았습니다.")
+    except KakaoError as error:
+        logger.error("카카오 로그인을 시작하지 못했습니다: %s", error)
         return _failure("provider_error")
 
     response = RedirectResponse(url, status_code=302)
@@ -77,8 +77,10 @@ def kakao_callback(
 
     try:
         profile = client.fetch_profile(client.exchange_code(code))
-    except KakaoError:
-        logger.warning("카카오 로그인 중 카카오 API 호출에 실패했습니다.")
+    except KakaoError as error:
+        # KakaoError의 메시지에는 HTTP 상태 코드만 있고 코드·토큰·시크릿은 없다.
+        # (401: 시크릿 불일치, 400: 인가 코드나 Redirect URI 불일치 등 원인 파악에 쓴다)
+        logger.warning("카카오 로그인 중 카카오 API 호출에 실패했습니다: %s", error)
         return _failure("provider_error")
 
     tokens = kakao_auth_service.login_with_kakao(db, profile)

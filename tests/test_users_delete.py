@@ -189,3 +189,18 @@ class TestKakaoAccountDeletion:
         client.delete(ME, headers=_bearer(token))
 
         assert kakao.unlinked == []
+
+
+def test_연결_해제_실패_원인을_로그에_남긴다(
+    client: TestClient, kakao: FakeKakaoClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    kakao_login(client)
+    token = client.post("/api/auth/refresh").json()["access_token"]
+    kakao.fail_unlink = KakaoError("카카오 API 오류 (HTTP 401)")
+
+    with caplog.at_level("WARNING"):
+        response = client.delete(ME, headers=_bearer(token))
+
+    assert response.status_code == 204
+    assert "카카오 연결 해제에 실패했습니다" in caplog.text
+    assert "HTTP 401" in caplog.text

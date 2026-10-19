@@ -335,3 +335,26 @@ class TestKakaoCallbackFailure:
             c.startswith("kakao_state=") and "Max-Age=0" in c
             for c in response.headers.get_list("set-cookie")
         )
+
+
+class TestKakaoFailureLogging:
+    def test_카카오_API_실패_원인을_로그에_남기되_비밀_값은_남기지_않는다(
+        self, client: TestClient, kakao: FakeKakaoClient, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        kakao.fail_exchange = KakaoError("카카오 API 오류 (HTTP 401)")
+
+        with caplog.at_level("WARNING"):
+            kakao_login(client, code="secret-auth-code")
+
+        assert "HTTP 401" in caplog.text
+        assert "secret-auth-code" not in caplog.text
+
+    def test_시작_단계의_설정_오류도_원인을_남긴다(
+        self, client: TestClient, kakao: FakeKakaoClient, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        kakao.fail_authorize = KakaoNotConfigured("카카오 환경변수가 설정되지 않았습니다.")
+
+        with caplog.at_level("ERROR"):
+            client.get(LOGIN, follow_redirects=False)
+
+        assert "카카오 환경변수가 설정되지 않았습니다." in caplog.text
