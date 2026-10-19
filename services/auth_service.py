@@ -26,7 +26,7 @@ from repositories import (
     refresh_token_repository,
     user_repository,
 )
-from schemas.auth import LoginRequest, SignupRequest
+from schemas.auth import LoginRequest, PasswordResetRequest, SignupRequest
 from services.pregnancy import validate_due_date
 
 
@@ -177,3 +177,25 @@ def logout(db: Session, refresh_token: str | None, now: datetime | None = None) 
     if stored is not None:
         refresh_token_repository.revoke_family(db, stored.family_id, now or utc_now())
         db.commit()
+
+
+def reset_password(
+    db: Session, request: PasswordResetRequest, now: datetime | None = None
+) -> None:
+    """이메일 인증을 마친 사용자의 비밀번호를 바꾸고, 모든 기기의 로그인을 해제한다."""
+    now = now or utc_now()
+    verify_email_verification_token(
+        request.email_verification_token, request.email, "password_reset"
+    )
+    user = user_repository.get_by_email(db, request.email)
+    identity = (
+        auth_identity_repository.get_local_by_user_id(db, user.id) if user else None
+    )
+    if identity is None:
+        raise AppError(
+            400, "EMAIL_TOKEN_INVALID", "이메일 인증이 유효하지 않습니다. 다시 진행해 주세요."
+        )
+
+    identity.password_hash = hash_password(request.new_password)
+    refresh_token_repository.revoke_all_for_user(db, identity.user_id, now)
+    db.commit()

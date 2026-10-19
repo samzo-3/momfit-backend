@@ -21,3 +21,13 @@ def get_local_by_login_id(db: Session, login_id: str) -> AuthIdentity | None:
             AuthIdentity.login_id == login_id,
         )
     )
+
+
+def get_local_by_user_id(db: Session, user_id: int) -> AuthIdentity | None:
+    """사용자의 로컬 로그인 수단을 조회한다."""
+    return db.scalar(
+        select(AuthIdentity).where(
+            AuthIdentity.provider == LOCAL_PROVIDER,
+            AuthIdentity.user_id == user_id,
+        )
+    )

@@ -1,12 +1,11 @@
 """인증 요청·응답 스키마."""
 
-import re
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+from schemas.validators import normalize_email, validate_password
 
 
 class Consents(BaseModel):
@@ -38,13 +37,7 @@ class SignupRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def _check_password(cls, value: str) -> str:
-        if (
-            len(value) < 8
-            or not re.search(r"[A-Za-z]", value)
-            or not re.search(r"\d", value)
-        ):
-            raise ValueError("8자 이상, 영문과 숫자를 포함해야 합니다.")
-        return value
+        return validate_password(value)
 
     @field_validator("nickname")
     @classmethod
@@ -57,10 +50,7 @@ class SignupRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def _normalize_email(cls, value: str) -> str:
-        value = value.strip().lower()
-        if not _EMAIL_PATTERN.match(value):
-            raise ValueError("이메일 형식이 올바르지 않습니다.")
-        return value
+        return normalize_email(value)
 
 
 class LoginRequest(BaseModel):
@@ -82,3 +72,21 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     expires_in: int
+
+
+class PasswordResetRequest(BaseModel):
+    """이메일 인증을 마친 사용자의 비밀번호 재설정 요청."""
+
+    email: str = Field(max_length=255)
+    email_verification_token: str
+    new_password: str = Field(max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_password(cls, value: str) -> str:
+        return validate_password(value)

@@ -8,6 +8,7 @@ from db.session import get_db
 from schemas.auth import (
     CheckLoginIdResponse,
     LoginRequest,
+    PasswordResetRequest,
     SignupRequest,
     TokenResponse,
 )
@@ -115,3 +116,8 @@ def verify_email_code(
     )
     return VerifyCodeResponse(email_verification_token=token, expires_in=expires_in)
 
+
+@router.post("/password/reset", status_code=204)
+def reset_password(body: PasswordResetRequest, db: Session = Depends(get_db)) -> None:
+    """이메일 인증 후 비밀번호를 재설정한다."""
+    auth_service.reset_password(db, body)

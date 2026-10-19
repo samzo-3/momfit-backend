@@ -31,3 +31,12 @@ def revoke_family(db: Session, family_id: str, now: datetime) -> None:
         .where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None))
         .values(revoked_at=now)
     )
+
+
+def revoke_all_for_user(db: Session, user_id: int, now: datetime) -> None:
+    """사용자의 아직 폐기되지 않은 refresh 토큰을 모두 폐기한다. 비밀번호 재설정·탈퇴 때 쓴다."""
+    db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
