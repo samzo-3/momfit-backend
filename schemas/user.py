@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from schemas.auth import Consents
+
 
 class UserResponse(BaseModel):
     """GET /users/me 응답."""
@@ -48,3 +50,22 @@ class UpdateProfileRequest(BaseModel):
             if getattr(self, name) is None:
                 raise ValueError(f"{name}은(는) null로 바꿀 수 없습니다.")
         return self
+
+
+class OnboardingRequest(BaseModel):
+    """POST /users/me/onboarding 요청. 카카오로 처음 가입한 사용자가 동의와 초기 프로필을 제출한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nickname: str = Field(max_length=20)
+    due_date: date
+    exercise_level: Literal["low", "medium", "high"]
+    consents: Consents
+
+    @field_validator("nickname")
+    @classmethod
+    def _strip_nickname(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("닉네임을 입력해 주세요.")
+        return value

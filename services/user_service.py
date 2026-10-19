@@ -1,17 +1,21 @@
-"""사용자 프로필 조회·수정, 회원 탈퇴 비즈니스 로직."""
+"""사용자 프로필 조회·수정, 온보딩, 회원 탈퇴 비즈니스 로직."""
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from core.clock import today_kst
+from core.clock import today_kst, utc_now
+from core.errors import AppError
+from models.auth_identity import KAKAO_PROVIDER
 from models.user import User
 from repositories import (
     email_verification_repository,
     refresh_token_repository,
     user_repository,
 )
-from schemas.user import UpdateProfileRequest, UserResponse
+from schemas.user import OnboardingRequest, UpdateProfileRequest, UserResponse
+from services import kakao_auth_service
+from services.kakao_client import KakaoClient
 from services.pregnancy import calculate_pregnancy_week, validate_due_date
 
 
@@ -50,10 +54,49 @@ def update_profile(
     return to_user_response(user, today)
 
 
-def delete_account(db: Session, user: User) -> None:
-    """회원을 탈퇴시킨다. 로그인 수단, refresh 토큰, 이메일 인증 기록을 함께 삭제한다."""
+def complete_onboarding(
+    db: Session,
+    user: User,
+    request: OnboardingRequest,
+    today: date | None = None,
+    now: datetime | None = None,
+) -> UserResponse:
+    """카카오로 처음 가입한 사용자의 동의와 초기 프로필을 저장하고 온보딩을 마친다."""
+    if user.onboarding_completed:
+        raise AppError(
+            409, "ONBOARDING_ALREADY_COMPLETED", "이미 온보딩을 마친 계정입니다."
+        )
+    today = today or today_kst()
+    now = now or utc_now()
+    validate_due_date(request.due_date, today)
+
+    user.nickname = request.nickname
+    user.due_date = request.due_date
+    user.exercise_level = request.exercise_level
+    user.terms_agreed_at = now
+    user.health_data_agreed_at = now
+    user.onboarding_completed = True
+    db.commit()
+    db.refresh(user)
+    return to_user_response(user, today)
+
+
+def delete_account(
+    db: Session, user: User, kakao_client: KakaoClient | None = None
+) -> None:
+    """회원을 탈퇴시킨다. 로그인 수단, refresh 토큰, 이메일 인증 기록을 함께 삭제한다.
+
+    카카오 계정이면 삭제를 마친 뒤 카카오 연결도 끊는다. (실패해도 탈퇴는 유지된다)
+    """
+    kakao_id = next(
+        (i.provider_user_id for i in user.identities if i.provider == KAKAO_PROVIDER),
+        None,
+    )
     refresh_token_repository.delete_all_for_user(db, user.id)
     if user.email:
         email_verification_repository.delete_by_email(db, user.email)
     user_repository.delete(db, user)
     db.commit()
+
+    if kakao_id and kakao_client:
+        kakao_auth_service.unlink_best_effort(kakao_client, kakao_id)

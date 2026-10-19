@@ -7,8 +7,9 @@ from api.deps import get_current_user
 from api.auth import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
 from db.session import get_db
 from models.user import User
-from schemas.user import UpdateProfileRequest, UserResponse
+from schemas.user import OnboardingRequest, UpdateProfileRequest, UserResponse
 from services import user_service
+from services.kakao_client import KakaoClient, get_kakao_client
 from services.user_service import to_user_response
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -30,12 +31,23 @@ def update_me(
     return user_service.update_profile(db, user, body)
 
 
+@router.post("/me/onboarding", response_model=UserResponse)
+def complete_onboarding(
+    body: OnboardingRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    """카카오로 처음 가입한 사용자의 동의와 초기 프로필을 제출한다."""
+    return user_service.complete_onboarding(db, user, body)
+
+
 @router.delete("/me", status_code=204)
 def delete_me(
     response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    kakao_client: KakaoClient = Depends(get_kakao_client),
 ) -> None:
-    """회원을 탈퇴시키고 이 기기의 refresh 쿠키를 삭제한다."""
-    user_service.delete_account(db, user)
+    """회원을 탈퇴시키고 이 기기의 refresh 쿠키를 삭제한다. 카카오 계정은 연결도 끊는다."""
+    user_service.delete_account(db, user, kakao_client)
     response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)

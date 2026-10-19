@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -5,8 +6,9 @@ from models.auth_identity import AuthIdentity
 from models.email_verification import EmailVerification
 from models.refresh_token import RefreshToken
 from models.user import User
-from tests.conftest import FakeMailer
-from tests.helpers import signup_payload
+from services.kakao_client import KakaoError, KakaoNotConfigured
+from tests.conftest import FakeKakaoClient, FakeMailer
+from tests.helpers import kakao_login, signup_payload
 
 ME = "/api/users/me"
 
@@ -118,3 +120,72 @@ def test_토큰이_없으면_401이고_아무것도_삭제되지_않는다(
 
     assert response.status_code == 401
     assert db_session.query(User).count() == 1
+
+
+class TestKakaoAccountDeletion:
+    def _kakao_access(self, client: TestClient) -> str:
+        kakao_login(client)
+        return client.post("/api/auth/refresh").json()["access_token"]
+
+    def test_카카오_계정을_탈퇴하면_연결도_끊는다(
+        self, client: TestClient, db_session: Session, kakao: FakeKakaoClient
+    ) -> None:
+        token = self._kakao_access(client)
+
+        response = client.delete(ME, headers=_bearer(token))
+
+        assert response.status_code == 204
+        assert kakao.unlinked == ["12345"]
+        db_session.expire_all()
+        assert db_session.query(User).count() == 0
+        assert db_session.query(AuthIdentity).count() == 0
+        assert db_session.query(RefreshToken).count() == 0
+
+    def test_연결_해제는_삭제가_끝난_뒤에_한다(
+        self, client: TestClient, db_session: Session, kakao: FakeKakaoClient
+    ) -> None:
+        token = self._kakao_access(client)
+        users_at_unlink: list[int] = []
+        kakao.unlink = lambda _id: users_at_unlink.append(  # type: ignore[method-assign]
+            db_session.query(User).count()
+        )
+
+        client.delete(ME, headers=_bearer(token))
+
+        assert users_at_unlink == [0]
+
+    @pytest.mark.parametrize("failure", [KakaoError("HTTP 500"), KakaoNotConfigured("설정 없음"), RuntimeError("예상 밖")])
+    def test_연결_해제에_실패해도_탈퇴는_완료된다(
+        self, client: TestClient, db_session: Session, kakao: FakeKakaoClient, failure: Exception
+    ) -> None:
+        token = self._kakao_access(client)
+        kakao.fail_unlink = failure
+
+        response = client.delete(ME, headers=_bearer(token))
+
+        assert response.status_code == 204
+        db_session.expire_all()
+        assert db_session.query(User).count() == 0
+
+    def test_탈퇴한_카카오_계정으로_다시_로그인하면_새_계정이_된다(
+        self, client: TestClient, db_session: Session
+    ) -> None:
+        token = self._kakao_access(client)
+        client.delete(ME, headers=_bearer(token))
+        client.cookies.clear()
+
+        kakao_login(client)
+
+        assert db_session.query(User).count() == 1
+        me = client.post("/api/auth/refresh").json()["access_token"]
+        profile = client.get(ME, headers=_bearer(me)).json()
+        assert profile["onboarding_completed"] is False
+
+    def test_로컬_계정을_탈퇴해도_카카오를_호출하지_않는다(
+        self, client: TestClient, kakao: FakeKakaoClient
+    ) -> None:
+        token = _signup(client)
+
+        client.delete(ME, headers=_bearer(token))
+
+        assert kakao.unlinked == []
