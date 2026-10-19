@@ -2,3 +2,6 @@ fastapi==0.143.5
 uvicorn==0.53.0
 SQLAlchemy==2.0.55
 PyMySQL==1.1.1
+pydantic==2.14.1
+PyJWT==2.15.1
+argon2-cffi==25.1.0
