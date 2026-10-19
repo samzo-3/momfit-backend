@@ -1,6 +1,6 @@
 """인증 라우터."""
 
-from fastapi import APIRouter, Cookie, Depends, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from core.config import settings
@@ -11,8 +11,14 @@ from schemas.auth import (
     SignupRequest,
     TokenResponse,
 )
-from services import auth_service
+from schemas.email_verification import (
+    SendCodeRequest,
+    VerifyCodeRequest,
+    VerifyCodeResponse,
+)
+from services import auth_service, email_verification_service
 from services.auth_service import IssuedTokens
+from services.mailer import Mailer, get_mailer, send_safely
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -81,3 +87,31 @@ def logout(
     """refresh 토큰을 폐기하고 쿠키를 삭제한다."""
     auth_service.logout(db, refresh_token)
     response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+
+
+@router.post("/email/send-code", status_code=204)
+def send_email_code(
+    body: SendCodeRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    mailer: Mailer = Depends(get_mailer),
+) -> None:
+    """이메일 인증 코드를 발송한다. 계정 존재 여부와 상관없이 같은 응답을 반환한다."""
+    ip = request.client.host if request.client else None
+    mail = email_verification_service.send_code(db, body.email, body.purpose, ip)
+    if mail is not None:
+        # 응답 이후에 보내서, 발송 시간 차이로 계정 존재 여부가 드러나지 않게 한다.
+        background_tasks.add_task(send_safely, mailer, mail)
+
+
+@router.post("/email/verify-code", response_model=VerifyCodeResponse)
+def verify_email_code(
+    body: VerifyCodeRequest, db: Session = Depends(get_db)
+) -> VerifyCodeResponse:
+    """인증 코드를 검증하고 가입·비밀번호 재설정에 쓸 토큰을 발급한다."""
+    token, expires_in = email_verification_service.verify_code(
+        db, body.email, body.purpose, body.code
+    )
+    return VerifyCodeResponse(email_verification_token=token, expires_in=expires_in)
+
