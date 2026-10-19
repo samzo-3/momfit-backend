@@ -16,6 +16,13 @@ class Settings:
     refresh_token_expire_days: int
     # refresh 토큰 쿠키의 Secure 속성. HTTPS가 아닌 환경에서만 false로 둔다.
     cookie_secure: bool
+    # "smtp"(운영) 또는 "console"(개발: 인증 코드를 로그로만 출력). 기본값은 운영 기준인 smtp다.
+    mail_backend: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    mail_from: str
 
     def require_jwt_secret(self) -> str:
         """JWT 서명 키를 반환하고, 설정되지 않았으면 예외를 발생시킨다."""
@@ -38,6 +45,12 @@ def get_settings() -> Settings:
         ),
         refresh_token_expire_days=int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "14")),
         cookie_secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
+        mail_backend=os.getenv("MAIL_BACKEND") or "smtp",
+        smtp_host=os.getenv("SMTP_HOST", ""),
+        smtp_port=int(os.getenv("SMTP_PORT") or "587"),
+        smtp_username=os.getenv("SMTP_USERNAME", ""),
+        smtp_password=os.getenv("SMTP_PASSWORD", ""),
+        mail_from=os.getenv("MAIL_FROM", ""),
     )
 
 
