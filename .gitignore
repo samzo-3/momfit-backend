@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# 로컬 개발용 SQLite DB (DATABASE_URL=sqlite:///./local.db)
+local.db
+
 # Python 가상환경
 .venv/
 venv/
