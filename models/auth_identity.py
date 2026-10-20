@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from models.user import User
 
 LOCAL_PROVIDER = "local"
+KAKAO_PROVIDER = "kakao"
 
 
 class AuthIdentity(Base):

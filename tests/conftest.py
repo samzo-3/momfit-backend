@@ -18,17 +18,24 @@ import models  # noqa: F401
 from db.base import Base
 from db.session import get_db
 from main import app
+from services.kakao_client import KakaoProfile, get_kakao_client
 from services.mailer import Mail, get_mailer
 
 
 @pytest.fixture()
 def db_session() -> Generator[Session, None, None]:
-    """테스트마다 새로 만들어지는 in-memory DB 세션."""
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    """테스트마다 새로 만들어지는 DB 세션. 기본은 SQLite in-memory이고,
+    TEST_DATABASE_URL을 주면 그 DB(예: MySQL)에서 테이블을 만들고 지우며 실행한다."""
+    url = os.getenv("TEST_DATABASE_URL")
+    if url:
+        engine = create_engine(url, pool_pre_ping=True)
+        Base.metadata.drop_all(engine)
+    else:
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
     Base.metadata.create_all(engine)
     testing_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = testing_session()
@@ -36,6 +43,8 @@ def db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+        if url:
+            Base.metadata.drop_all(engine)
         engine.dispose()
 
 
@@ -55,15 +64,58 @@ class FakeMailer:
         return match.group(1)
 
 
+class FakeKakaoClient:
+    """카카오 API 호출을 흉내 내는 테스트용 클라이언트. 호출 기록과 실패 주입을 지원한다."""
+
+    def __init__(self) -> None:
+        self.profile = KakaoProfile(id="12345", nickname="카카오맘")
+        self.exchanged_codes: list[str] = []
+        self.unlinked: list[str] = []
+        self.fail_authorize: Exception | None = None
+        self.fail_exchange: Exception | None = None
+        self.fail_profile: Exception | None = None
+        self.fail_unlink: Exception | None = None
+
+    def authorize_url(self, state: str) -> str:
+        if self.fail_authorize:
+            raise self.fail_authorize
+        return f"https://kauth.kakao.com/oauth/authorize?client_id=test&state={state}"
+
+    def exchange_code(self, code: str) -> str:
+        self.exchanged_codes.append(code)
+        if self.fail_exchange:
+            raise self.fail_exchange
+        return "kakao-access-token"
+
+    def fetch_profile(self, access_token: str) -> KakaoProfile:
+        assert access_token == "kakao-access-token"
+        if self.fail_profile:
+            raise self.fail_profile
+        return self.profile
+
+    def unlink(self, kakao_user_id: str) -> None:
+        if self.fail_unlink:
+            raise self.fail_unlink
+        self.unlinked.append(kakao_user_id)
+
+
 @pytest.fixture()
 def mailer() -> FakeMailer:
     return FakeMailer()
 
 
 @pytest.fixture()
-def client(db_session: Session, mailer: FakeMailer) -> Generator[TestClient, None, None]:
-    """get_db와 메일러를 테스트용으로 교체한 TestClient."""
+def kakao() -> FakeKakaoClient:
+    return FakeKakaoClient()
+
+
+@pytest.fixture()
+def client(
+    db_session: Session, mailer: FakeMailer, kakao: FakeKakaoClient
+) -> Generator[TestClient, None, None]:
+    """get_db, 메일러, 카카오 클라이언트를 테스트용으로 교체한 TestClient."""
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_mailer] = lambda: mailer
+    app.dependency_overrides[get_kakao_client] = lambda: kakao
     yield TestClient(app)
     app.dependency_overrides.clear()
