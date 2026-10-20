@@ -34,6 +34,8 @@ class Settings:
     frontend_url: str
     # 탈퇴 후 데이터를 그대로 두는 유예 기간(일). 이 기간 안에는 로그인해서 복구할 수 있다.
     account_grace_days: int
+    # 유예 기간이 지난 계정을 삭제하는 주기(시간). 0이면 앱 안의 주기 작업을 끈다.
+    account_purge_interval_hours: int
 
     def require_jwt_secret(self) -> str:
         """JWT 서명 키를 반환하고, 설정되지 않았으면 예외를 발생시킨다."""
@@ -68,6 +70,9 @@ def get_settings() -> Settings:
         kakao_admin_key=os.getenv("KAKAO_ADMIN_KEY", ""),
         frontend_url=os.getenv("FRONTEND_URL", "").rstrip("/"),
         account_grace_days=int(os.getenv("ACCOUNT_GRACE_DAYS") or "30"),
+        account_purge_interval_hours=int(
+            os.getenv("ACCOUNT_PURGE_INTERVAL_HOURS") or "6"
+        ),
     )
 
 
