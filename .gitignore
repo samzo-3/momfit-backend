@@ -37,7 +37,12 @@ logs/
 
 # IDE 설정
 .idea/
+.vscode/
 
 # 운영체제 임시 파일
 .DS_Store
 Thumbs.db
+
+# git
+.git/
+.gitignore
