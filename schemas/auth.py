@@ -66,6 +66,13 @@ class CheckLoginIdResponse(BaseModel):
     available: bool
 
 
+class RestoreInfoResponse(BaseModel):
+    """탈퇴 유예 중인 계정의 복구 화면용 일정. 시각은 UTC(Z)다."""
+
+    withdrawn_at: datetime
+    purge_at: datetime
+
+
 class TokenResponse(BaseModel):
     """access 토큰 응답. refresh 토큰은 쿠키로 내려간다."""
 

@@ -7,12 +7,13 @@ from fastapi.responses import JSONResponse
 
 from core.config import settings
 from core.errors import error_response
-from core.security import RESTORE_TOKEN_EXPIRE_SECONDS, create_restore_token
+from core.security import RESTORE_TOKEN_EXPIRE_SECONDS, create_restore_token, decode_restore_token
 from db.session import get_db
 from schemas.auth import (
     CheckLoginIdResponse,
     LoginRequest,
     PasswordResetRequest,
+    RestoreInfoResponse,
     SignupRequest,
     TokenResponse,
 )
@@ -21,7 +22,7 @@ from schemas.email_verification import (
     VerifyCodeRequest,
     VerifyCodeResponse,
 )
-from services import auth_service, email_verification_service
+from services import account_service, auth_service, email_verification_service
 from services.auth_service import AccountWithdrawnError, IssuedTokens
 from services.mailer import Mailer, get_mailer, send_safely
 
@@ -95,6 +96,27 @@ def login(
         )
         set_restore_cookie(blocked, withdrawn.user_id)
         return blocked
+    return _token_response(response, tokens)
+
+
+@router.get("/restore", response_model=RestoreInfoResponse)
+def restore_info(
+    restore_token: str | None = Cookie(default=None), db: Session = Depends(get_db)
+) -> RestoreInfoResponse:
+    """복구 화면에 보여줄 탈퇴 일정(탈퇴 시각, 삭제 예정 시각)을 반환한다."""
+    info = account_service.get_restore_info(db, decode_restore_token(restore_token))
+    return RestoreInfoResponse(withdrawn_at=info.withdrawn_at, purge_at=info.purge_at)
+
+
+@router.post("/restore", response_model=TokenResponse)
+def restore(
+    response: Response,
+    restore_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """탈퇴 유예 중인 계정을 복구하고 로그인 처리한다."""
+    tokens = account_service.restore(db, decode_restore_token(restore_token))
+    response.delete_cookie(RESTORE_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
     return _token_response(response, tokens)
 
 
