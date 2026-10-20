@@ -3,12 +3,17 @@
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from fastapi.responses import JSONResponse
+
 from core.config import settings
+from core.errors import error_response
+from core.security import RESTORE_TOKEN_EXPIRE_SECONDS, create_restore_token, decode_restore_token
 from db.session import get_db
 from schemas.auth import (
     CheckLoginIdResponse,
     LoginRequest,
     PasswordResetRequest,
+    RestoreInfoResponse,
     SignupRequest,
     TokenResponse,
 )
@@ -17,9 +22,9 @@ from schemas.email_verification import (
     VerifyCodeRequest,
     VerifyCodeResponse,
 )
-from services import auth_service, email_verification_service
-from services.auth_service import IssuedTokens
-from services.mailer import Mailer, get_mailer, send_safely
+from services.auth import account_service, auth_service, email_verification_service
+from services.auth.auth_service import AccountWithdrawnError, IssuedTokens
+from services.auth.mailer import Mailer, get_mailer, send_safely
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -34,6 +39,22 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         REFRESH_COOKIE_NAME,
         token,
         max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
+
+
+RESTORE_COOKIE_NAME = "restore_token"
+
+
+def set_restore_cookie(response: Response, user_id: int) -> None:
+    """탈퇴 유예 중인 계정의 복구 토큰을 짧은 수명의 httpOnly 쿠키로 내려준다. (카카오 로그인도 쓴다)"""
+    response.set_cookie(
+        RESTORE_COOKIE_NAME,
+        create_restore_token(user_id),
+        max_age=RESTORE_TOKEN_EXPIRE_SECONDS,
         path=REFRESH_COOKIE_PATH,
         httponly=True,
         secure=settings.cookie_secure,
@@ -65,9 +86,38 @@ def signup(
 @router.post("/login", response_model=TokenResponse)
 def login(
     request: LoginRequest, response: Response, db: Session = Depends(get_db)
+) -> TokenResponse | JSONResponse:
+    """아이디와 비밀번호로 로그인한다. 탈퇴 유예 중이면 403 ACCOUNT_WITHDRAWN과 복구용 쿠키를 내려준다."""
+    try:
+        tokens = auth_service.login(db, request)
+    except AccountWithdrawnError as withdrawn:
+        blocked = error_response(
+            403, "ACCOUNT_WITHDRAWN", "탈퇴 처리된 계정입니다. 복구할 수 있어요."
+        )
+        set_restore_cookie(blocked, withdrawn.user_id)
+        return blocked
+    return _token_response(response, tokens)
+
+
+@router.get("/restore", response_model=RestoreInfoResponse)
+def restore_info(
+    restore_token: str | None = Cookie(default=None), db: Session = Depends(get_db)
+) -> RestoreInfoResponse:
+    """복구 화면에 보여줄 탈퇴 일정(탈퇴 시각, 삭제 예정 시각)을 반환한다."""
+    info = account_service.get_restore_info(db, decode_restore_token(restore_token))
+    return RestoreInfoResponse(withdrawn_at=info.withdrawn_at, purge_at=info.purge_at)
+
+
+@router.post("/restore", response_model=TokenResponse)
+def restore(
+    response: Response,
+    restore_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
 ) -> TokenResponse:
-    """아이디와 비밀번호로 로그인한다."""
-    return _token_response(response, auth_service.login(db, request))
+    """탈퇴 유예 중인 계정을 복구하고 로그인 처리한다."""
+    tokens = account_service.restore(db, decode_restore_token(restore_token))
+    response.delete_cookie(RESTORE_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+    return _token_response(response, tokens)
 
 
 @router.post("/refresh", response_model=TokenResponse)
