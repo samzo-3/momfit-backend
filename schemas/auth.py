@@ -1,6 +1,6 @@
 """인증 요청·응답 스키마."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator

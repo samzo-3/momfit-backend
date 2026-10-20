@@ -8,7 +8,7 @@ from api.auth import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
 from db.session import get_db
 from models.user import User
 from schemas.user import OnboardingRequest, UpdateProfileRequest, UserResponse
-from services import user_service
+from services import account_service, user_service
 from services.kakao_client import KakaoClient, get_kakao_client
 from services.user_service import to_user_response
 
@@ -48,6 +48,9 @@ def delete_me(
     db: Session = Depends(get_db),
     kakao_client: KakaoClient = Depends(get_kakao_client),
 ) -> None:
-    """회원을 탈퇴시키고 이 기기의 refresh 쿠키를 삭제한다. 카카오 계정은 연결도 끊는다."""
-    user_service.delete_account(db, user, kakao_client)
+    """회원을 탈퇴 처리하고 이 기기의 refresh 쿠키를 삭제한다. 카카오 계정은 연결도 끊는다.
+
+    계정은 바로 지워지지 않고 유예 기간(기본 30일) 동안 복구할 수 있다. 기간이 지나면 완전히 삭제된다.
+    """
+    account_service.withdraw(db, user, kakao_client)
     response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)

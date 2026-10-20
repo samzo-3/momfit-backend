@@ -14,6 +14,8 @@ from core.errors import AppError
 
 ACCESS_TOKEN_TYPE = "access"
 EMAIL_TOKEN_TYPE = "email_verification"
+RESTORE_TOKEN_TYPE = "account_restore"
+RESTORE_TOKEN_EXPIRE_SECONDS = 10 * 60
 EMAIL_TOKEN_EXPIRE_SECONDS = 30 * 60
 
 _password_hasher = PasswordHasher()
@@ -104,6 +106,40 @@ def verify_email_verification_token(token: str, email: str, purpose: str) -> Non
         or payload.get("purpose") != purpose
     ):
         raise invalid
+
+
+def create_restore_token(user_id: int) -> str:
+    """탈퇴 유예 중인 계정의 복구 화면에서만 쓰는 짧은 수명의 토큰을 발급한다.
+
+    비밀번호(또는 카카오) 인증을 마친 사람에게만 발급하며, 복구 외의 API에는 쓸 수 없다.
+    """
+    payload = {
+        "type": RESTORE_TOKEN_TYPE,
+        "sub": str(user_id),
+        "exp": utc_now() + timedelta(seconds=RESTORE_TOKEN_EXPIRE_SECONDS),
+    }
+    return jwt.encode(
+        payload, settings.require_jwt_secret(), algorithm=settings.jwt_algorithm
+    )
+
+
+def decode_restore_token(token: str | None) -> int:
+    """복구 토큰을 검증하고 사용자 id를 반환한다."""
+    invalid = AppError(401, "RESTORE_INVALID", "복구 요청이 만료되었습니다. 다시 로그인해 주세요.")
+    if not token:
+        raise invalid
+    try:
+        payload = jwt.decode(
+            token,
+            settings.require_jwt_secret(),
+            algorithms=[settings.jwt_algorithm],
+            options={"require": ["exp", "sub"]},
+        )
+        if payload.get("type") != RESTORE_TOKEN_TYPE:
+            raise invalid
+        return int(payload["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        raise invalid from None
 
 
 def generate_refresh_token() -> str:

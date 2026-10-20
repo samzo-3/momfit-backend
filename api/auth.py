@@ -3,7 +3,11 @@
 from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from fastapi.responses import JSONResponse
+
 from core.config import settings
+from core.errors import error_response
+from core.security import RESTORE_TOKEN_EXPIRE_SECONDS, create_restore_token
 from db.session import get_db
 from schemas.auth import (
     CheckLoginIdResponse,
@@ -18,7 +22,7 @@ from schemas.email_verification import (
     VerifyCodeResponse,
 )
 from services import auth_service, email_verification_service
-from services.auth_service import IssuedTokens
+from services.auth_service import AccountWithdrawnError, IssuedTokens
 from services.mailer import Mailer, get_mailer, send_safely
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -34,6 +38,22 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         REFRESH_COOKIE_NAME,
         token,
         max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
+
+
+RESTORE_COOKIE_NAME = "restore_token"
+
+
+def set_restore_cookie(response: Response, user_id: int) -> None:
+    """탈퇴 유예 중인 계정의 복구 토큰을 짧은 수명의 httpOnly 쿠키로 내려준다. (카카오 로그인도 쓴다)"""
+    response.set_cookie(
+        RESTORE_COOKIE_NAME,
+        create_restore_token(user_id),
+        max_age=RESTORE_TOKEN_EXPIRE_SECONDS,
         path=REFRESH_COOKIE_PATH,
         httponly=True,
         secure=settings.cookie_secure,
@@ -65,9 +85,17 @@ def signup(
 @router.post("/login", response_model=TokenResponse)
 def login(
     request: LoginRequest, response: Response, db: Session = Depends(get_db)
-) -> TokenResponse:
-    """아이디와 비밀번호로 로그인한다."""
-    return _token_response(response, auth_service.login(db, request))
+) -> TokenResponse | JSONResponse:
+    """아이디와 비밀번호로 로그인한다. 탈퇴 유예 중이면 403 ACCOUNT_WITHDRAWN과 복구용 쿠키를 내려준다."""
+    try:
+        tokens = auth_service.login(db, request)
+    except AccountWithdrawnError as withdrawn:
+        blocked = error_response(
+            403, "ACCOUNT_WITHDRAWN", "탈퇴 처리된 계정입니다. 복구할 수 있어요."
+        )
+        set_restore_cookie(blocked, withdrawn.user_id)
+        return blocked
+    return _token_response(response, tokens)
 
 
 @router.post("/refresh", response_model=TokenResponse)

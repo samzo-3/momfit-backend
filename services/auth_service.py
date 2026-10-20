@@ -20,7 +20,7 @@ from core.security import (
 )
 from models.auth_identity import LOCAL_PROVIDER, AuthIdentity
 from models.refresh_token import RefreshToken
-from models.user import User
+from models.user import STATUS_ACTIVE, User
 from repositories import (
     auth_identity_repository,
     refresh_token_repository,
@@ -28,6 +28,14 @@ from repositories import (
 )
 from schemas.auth import LoginRequest, PasswordResetRequest, SignupRequest
 from services.pregnancy import validate_due_date
+
+
+class AccountWithdrawnError(Exception):
+    """탈퇴 유예 중인 계정이 인증을 마쳤다. 호출한 쪽이 복구 안내로 이어 준다."""
+
+    def __init__(self, user_id: int) -> None:
+        super().__init__("탈퇴 처리된 계정입니다.")
+        self.user_id = user_id
 
 
 @dataclass(frozen=True)
@@ -135,6 +143,12 @@ def login(db: Session, request: LoginRequest, now: datetime | None = None) -> Is
             401, "INVALID_CREDENTIALS", "아이디 또는 비밀번호가 올바르지 않습니다."
         )
 
+    # 비밀번호가 맞아도 탈퇴 유예 중이면 로그인시키지 않고 복구 안내로 넘긴다.
+    # (비밀번호 확인 뒤에 알려 주므로, 계정 존재 여부가 비밀번호 없이 드러나지 않는다)
+    user = user_repository.get_by_id(db, identity.user_id)
+    if user is not None and user.status != STATUS_ACTIVE:
+        raise AccountWithdrawnError(user.id)
+
     tokens = issue_tokens(db, identity.user_id, str(uuid.uuid4()), now)
     db.commit()
     return tokens
@@ -159,6 +173,10 @@ def refresh(db: Session, refresh_token: str | None, now: datetime | None = None)
         db.commit()
         raise _refresh_invalid()
     if stored.expires_at <= now:
+        raise _refresh_invalid()
+
+    user = user_repository.get_by_id(db, stored.user_id)
+    if user is None or user.status != STATUS_ACTIVE:
         raise _refresh_invalid()
 
     stored.revoked_at = now

@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from core.clock import utc_now
 from models.auth_identity import KAKAO_PROVIDER, AuthIdentity
-from models.user import User
+from models.user import STATUS_ACTIVE, User
 from repositories import auth_identity_repository, user_repository
-from services.auth_service import IssuedTokens, issue_tokens
+from services.auth_service import AccountWithdrawnError, IssuedTokens, issue_tokens
 from services.kakao_client import KakaoClient, KakaoError, KakaoProfile
 
 logger = logging.getLogger(__name__)
@@ -55,6 +55,12 @@ def login_with_kakao(
             )
             if identity is None:
                 raise
+
+    user = user_repository.get_by_id(db, identity.user_id)
+    if user is not None and user.status != STATUS_ACTIVE:
+        # 탈퇴 유예 중인 계정이다. 카카오 인증은 끝났으니 복구 안내로 넘긴다.
+        db.commit()
+        raise AccountWithdrawnError(user.id)
 
     tokens = issue_tokens(db, identity.user_id, str(uuid.uuid4()), now)
     db.commit()

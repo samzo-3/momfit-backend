@@ -7,10 +7,11 @@ from fastapi import APIRouter, Cookie, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from api.auth import set_refresh_cookie
+from api.auth import set_refresh_cookie, set_restore_cookie
 from core.config import settings
 from db.session import get_db
 from services import kakao_auth_service
+from services.auth_service import AccountWithdrawnError
 from services.kakao_client import KakaoClient, KakaoError, get_kakao_client
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,14 @@ def kakao_callback(
         logger.warning("카카오 로그인 중 카카오 API 호출에 실패했습니다: %s", error)
         return _failure("provider_error")
 
-    tokens = kakao_auth_service.login_with_kakao(db, profile)
+    try:
+        tokens = kakao_auth_service.login_with_kakao(db, profile)
+    except AccountWithdrawnError as withdrawn:
+        # 탈퇴 유예 중인 계정: 로그인시키지 않고 복구 화면으로 보낸다.
+        response = _redirect("/account/restore")
+        set_restore_cookie(response, withdrawn.user_id)
+        response.delete_cookie(STATE_COOKIE_NAME, path=STATE_COOKIE_PATH)
+        return response
     response = _redirect("/auth/callback")
     set_refresh_cookie(response, tokens.refresh_token)
     response.delete_cookie(STATE_COOKIE_NAME, path=STATE_COOKIE_PATH)
