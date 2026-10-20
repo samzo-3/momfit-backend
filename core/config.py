@@ -23,6 +23,15 @@ class Settings:
     smtp_username: str
     smtp_password: str
     mail_from: str
+    # 카카오 로그인. 비어 있으면 카카오 로그인은 동작하지 않는다. (비밀 값이라 기본값 없음)
+    kakao_client_id: str
+    kakao_client_secret: str
+    # 카카오 콘솔에 등록한 Redirect URI와 정확히 같아야 한다. 프록시를 거치는 프론트 주소 기준이다.
+    kakao_redirect_uri: str
+    # 회원 탈퇴 시 카카오 연결 해제(unlink)에 쓰는 서비스 앱 어드민 키
+    kakao_admin_key: str
+    # 카카오 로그인 후 돌아갈 프론트 주소. 비워 두면 같은 도메인(프록시)의 상대 경로로 보낸다.
+    frontend_url: str
 
     def require_jwt_secret(self) -> str:
         """JWT 서명 키를 반환하고, 설정되지 않았으면 예외를 발생시킨다."""
@@ -51,6 +60,11 @@ def get_settings() -> Settings:
         smtp_username=os.getenv("SMTP_USERNAME", ""),
         smtp_password=os.getenv("SMTP_PASSWORD", ""),
         mail_from=os.getenv("MAIL_FROM", ""),
+        kakao_client_id=os.getenv("KAKAO_CLIENT_ID", ""),
+        kakao_client_secret=os.getenv("KAKAO_CLIENT_SECRET", ""),
+        kakao_redirect_uri=os.getenv("KAKAO_REDIRECT_URI", ""),
+        kakao_admin_key=os.getenv("KAKAO_ADMIN_KEY", ""),
+        frontend_url=os.getenv("FRONTEND_URL", "").rstrip("/"),
     )
 
 

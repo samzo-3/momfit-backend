@@ -22,3 +22,17 @@ def signup_payload(**overrides: Any) -> dict[str, Any]:
     }
     payload.update(overrides)
     return payload
+
+
+def kakao_login(client, kakao_state: str | None = None, code: str = "auth-code"):
+    """카카오 로그인 전체 흐름(인가 요청 → 콜백)을 수행하고 콜백 응답을 반환한다.
+
+    kakao_state를 주면 콜백에 그 값을 state로 보내 state 불일치를 흉내 낸다.
+    """
+    login = client.get("/api/auth/kakao/login", follow_redirects=False)
+    state = login.headers["location"].split("state=")[1].split("&")[0]
+    return client.get(
+        "/api/auth/kakao/callback",
+        params={"code": code, "state": kakao_state or state},
+        follow_redirects=False,
+    )

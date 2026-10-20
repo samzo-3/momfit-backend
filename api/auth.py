@@ -28,7 +28,8 @@ REFRESH_COOKIE_NAME = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/auth"
 
 
-def _set_refresh_cookie(response: Response, token: str) -> None:
+def set_refresh_cookie(response: Response, token: str) -> None:
+    """refresh 토큰을 httpOnly 쿠키로 내려준다. (카카오 로그인도 같은 쿠키를 쓴다)"""
     response.set_cookie(
         REFRESH_COOKIE_NAME,
         token,
@@ -41,7 +42,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 
 def _token_response(response: Response, tokens: IssuedTokens) -> TokenResponse:
-    _set_refresh_cookie(response, tokens.refresh_token)
+    set_refresh_cookie(response, tokens.refresh_token)
     return TokenResponse(access_token=tokens.access_token, expires_in=tokens.expires_in)
 
 
