@@ -5,7 +5,7 @@
 
 import logging
 
-from services.account_service import run_purge
+from services.auth.account_service import run_purge
 
 
 def main() -> None:

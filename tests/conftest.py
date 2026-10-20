@@ -18,8 +18,8 @@ import models  # noqa: F401
 from db.base import Base
 from db.session import get_db
 from main import app
-from services.kakao_client import KakaoProfile, get_kakao_client
-from services.mailer import Mail, get_mailer
+from services.auth.kakao_client import KakaoProfile, get_kakao_client
+from services.auth.mailer import Mail, get_mailer
 
 
 @pytest.fixture()

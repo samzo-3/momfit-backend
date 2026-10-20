@@ -8,7 +8,7 @@ from models.auth_identity import AuthIdentity
 from models.email_verification import EmailVerification
 from models.refresh_token import RefreshToken
 from models.user import STATUS_ACTIVE, STATUS_WITHDRAWN, User
-from services.kakao_client import KakaoError, KakaoNotConfigured
+from services.auth.kakao_client import KakaoError, KakaoNotConfigured
 from tests.conftest import FakeKakaoClient, FakeMailer
 from tests.helpers import kakao_login, signup_payload
 

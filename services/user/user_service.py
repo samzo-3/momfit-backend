@@ -8,7 +8,7 @@ from core.clock import today_kst, utc_now
 from core.errors import AppError
 from models.user import User
 from schemas.user import OnboardingRequest, UpdateProfileRequest, UserResponse
-from services.pregnancy import calculate_pregnancy_week, validate_due_date
+from services.user.pregnancy import calculate_pregnancy_week, validate_due_date
 
 
 def to_user_response(user: User, today: date | None = None) -> UserResponse:

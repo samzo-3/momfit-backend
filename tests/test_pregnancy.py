@@ -3,7 +3,7 @@ from datetime import date, timedelta
 import pytest
 
 from core.errors import AppError
-from services.pregnancy import calculate_pregnancy_week, validate_due_date
+from services.user.pregnancy import calculate_pregnancy_week, validate_due_date
 
 TODAY = date(2026, 10, 19)
 

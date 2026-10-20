@@ -22,9 +22,9 @@ from schemas.email_verification import (
     VerifyCodeRequest,
     VerifyCodeResponse,
 )
-from services import account_service, auth_service, email_verification_service
-from services.auth_service import AccountWithdrawnError, IssuedTokens
-from services.mailer import Mailer, get_mailer, send_safely
+from services.auth import account_service, auth_service, email_verification_service
+from services.auth.auth_service import AccountWithdrawnError, IssuedTokens
+from services.auth.mailer import Mailer, get_mailer, send_safely
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

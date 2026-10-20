@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-import services.kakao_client as module
-from services.kakao_client import (
+import services.auth.kakao_client as module
+from services.auth.kakao_client import (
     KakaoClient,
     KakaoError,
     KakaoNotConfigured,

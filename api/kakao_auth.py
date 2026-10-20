@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 from api.auth import set_refresh_cookie, set_restore_cookie
 from core.config import settings
 from db.session import get_db
-from services import kakao_auth_service
-from services.auth_service import AccountWithdrawnError
-from services.kakao_client import KakaoClient, KakaoError, get_kakao_client
+from services.auth import kakao_auth_service
+from services.auth.auth_service import AccountWithdrawnError
+from services.auth.kakao_client import KakaoClient, KakaoError, get_kakao_client
 
 logger = logging.getLogger(__name__)
 

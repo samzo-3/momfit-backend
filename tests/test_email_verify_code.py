@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from core.clock import utc_now
 from core.security import verify_email_verification_token
 from models.email_verification import EmailVerification
-from services import email_verification_service as service
+from services.auth import email_verification_service as service
 from tests.conftest import FakeMailer
 from tests.helpers import signup_payload
 

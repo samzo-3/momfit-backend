@@ -21,9 +21,9 @@ from repositories import (
     refresh_token_repository,
     user_repository,
 )
-from services import kakao_auth_service
-from services.auth_service import IssuedTokens, issue_tokens
-from services.kakao_client import KakaoClient
+from services.auth import kakao_auth_service
+from services.auth.auth_service import IssuedTokens, issue_tokens
+from services.auth.kakao_client import KakaoClient
 
 logger = logging.getLogger(__name__)
 

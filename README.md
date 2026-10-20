@@ -58,15 +58,22 @@ momfit-backend/
 │   ├── email_verification.py
 │   ├── user.py
 │   └── validators.py
-├── services/ # 기능별로 디렉토리 구분 예정
+├── scripts/                                # 수동·cron 실행용 스크립트
+│   └── purge_withdrawn.py                  # 유예 기간이 지난 탈퇴 계정 삭제
+├── services/ # 기능별로 디렉토리 구분
 │   ├── __init__.py
-│   ├── auth_service.py 
-│   ├── email_verification_service.py
-│   ├── kakao_auth_service.py
-│   ├── kakao_client.py
-│   ├── mailer.py
-│   ├── pregnancy.py
-│   ├── user_service.py
+│   ├── auth/                               # 인증·인가
+│   │   ├── __init__.py
+│   │   ├── account_service.py              # 회원 탈퇴(30일 유예), 복구, 만료 계정 삭제
+│   │   ├── auth_service.py
+│   │   ├── email_verification_service.py
+│   │   ├── kakao_auth_service.py
+│   │   ├── kakao_client.py
+│   │   └── mailer.py
+│   ├── user/                               # 사용자 프로필
+│   │   ├── __init__.py
+│   │   ├── pregnancy.py
+│   │   └── user_service.py
 │   └── pose_coaching/                     
 │       ├── placeholder.py                  
 │       ├── analyzers/
@@ -112,7 +119,10 @@ momfit-backend/
 | `models/` | SQLAlchemy ORM 모델. 사용자, 인증 식별자, 리프레시 토큰, 이메일 인증 모델 파일을 포함합니다. |
 | `schemas/` | Pydantic 기반 요청·응답 데이터 검증과 직렬화. 인증·사용자·이메일 인증 Schema 및 검증 함수 파일을 포함합니다. |
 | `repositories/` | 데이터베이스 접근 및 CRUD 계층. 사용자, 인증 식별자, 리프레시 토큰, 이메일 인증 데이터의 조회·저장 등을 담당합니다. |
-| `services/` | 비즈니스 로직. 인증, 사용자, 이메일 검증, 카카오 로그인, 카카오 클라이언트, 메일 및 임신 관련 서비스 파일을 포함합니다. 향후 MediaPipe·YOLO 관련 처리도 이 계층에서 역할에 맞게 분리할 수 있습니다. |
+| `services/` | 비즈니스 로직. 기능별 하위 디렉터리로 나눕니다. 향후 MediaPipe·YOLO 관련 처리도 이 계층에서 역할에 맞게 분리할 수 있습니다. |
+| `services/auth/` | 인증·인가. 가입·로그인·토큰, 이메일 인증, 메일 발송, 카카오 로그인·클라이언트, 회원 탈퇴(30일 유예)·복구·만료 계정 삭제를 담당합니다. |
+| `services/user/` | 사용자 프로필 조회·수정, 온보딩, 임신 주차 계산을 담당합니다. |
+| `scripts/` | 서버 밖에서 수동이나 cron으로 실행하는 스크립트. 현재는 유예 기간이 지난 탈퇴 계정을 삭제하는 `purge_withdrawn.py`가 있습니다. |
 | `services/pose_coaching/` | **구현 예정:** 운동 자세 분석·코칭을 위한 상위 모듈입니다. 현재는 디렉터리와 임시 파일만 준비되어 있습니다. |
 | `services/pose_coaching/common/` | **구현 예정:** 여러 운동에서 재사용할 공통 데이터 구조, 특징값 계산 및 공통 계산을 관리합니다. |
 | `services/pose_coaching/analyzers/` | **구현 예정:** 사이드 스텝, 스쿼트 등 운동별 자세 분석 모듈을 관리합니다. |

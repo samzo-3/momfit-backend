@@ -8,9 +8,10 @@ from api.auth import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
 from db.session import get_db
 from models.user import User
 from schemas.user import OnboardingRequest, UpdateProfileRequest, UserResponse
-from services import account_service, user_service
-from services.kakao_client import KakaoClient, get_kakao_client
-from services.user_service import to_user_response
+from services.auth import account_service
+from services.user import user_service
+from services.auth.kakao_client import KakaoClient, get_kakao_client
+from services.user.user_service import to_user_response
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 

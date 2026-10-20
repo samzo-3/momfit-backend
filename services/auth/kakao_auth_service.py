@@ -11,8 +11,8 @@ from core.clock import utc_now
 from models.auth_identity import KAKAO_PROVIDER, AuthIdentity
 from models.user import STATUS_ACTIVE, User
 from repositories import auth_identity_repository, user_repository
-from services.auth_service import AccountWithdrawnError, IssuedTokens, issue_tokens
-from services.kakao_client import KakaoClient, KakaoError, KakaoProfile
+from services.auth.auth_service import AccountWithdrawnError, IssuedTokens, issue_tokens
+from services.auth.kakao_client import KakaoClient, KakaoError, KakaoProfile
 
 logger = logging.getLogger(__name__)
 

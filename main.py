@@ -17,7 +17,7 @@ from core.config import settings
 from core.errors import register_exception_handlers
 from db.base import Base
 from db.session import engine
-from services.account_service import run_purge
+from services.auth.account_service import run_purge
 
 logger = logging.getLogger(__name__)
 

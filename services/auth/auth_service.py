@@ -27,7 +27,7 @@ from repositories import (
     user_repository,
 )
 from schemas.auth import LoginRequest, PasswordResetRequest, SignupRequest
-from services.pregnancy import validate_due_date
+from services.user.pregnancy import validate_due_date
 
 
 class AccountWithdrawnError(Exception):

@@ -16,7 +16,7 @@ from models.auth_identity import AuthIdentity
 from models.email_verification import EmailVerification
 from models.refresh_token import RefreshToken
 from models.user import User
-from services import account_service
+from services.auth import account_service
 from tests.conftest import FakeMailer
 from tests.helpers import signup_payload
 
