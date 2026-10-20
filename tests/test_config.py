@@ -40,3 +40,23 @@ def test_JWT_SECRET이_없으면_토큰_발급용_조회가_실패한다(
 
     with pytest.raises(RuntimeError):
         get_settings().require_jwt_secret()
+
+
+def test_탈퇴_유예_설정_기본값은_30일과_6시간_주기다(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ACCOUNT_GRACE_DAYS", raising=False)
+    monkeypatch.delenv("ACCOUNT_PURGE_INTERVAL_HOURS", raising=False)
+
+    settings = get_settings()
+
+    assert settings.account_grace_days == 30
+    assert settings.account_purge_interval_hours == 6
+
+
+def test_환경변수로_탈퇴_유예_설정을_바꾼다(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ACCOUNT_GRACE_DAYS", "7")
+    monkeypatch.setenv("ACCOUNT_PURGE_INTERVAL_HOURS", "0")
+
+    settings = get_settings()
+
+    assert settings.account_grace_days == 7
+    assert settings.account_purge_interval_hours == 0

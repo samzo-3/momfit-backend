@@ -13,7 +13,7 @@ from core.errors import AppError
 from core.security import EMAIL_TOKEN_EXPIRE_SECONDS, create_email_verification_token
 from models.email_verification import EmailVerification
 from repositories import email_verification_repository, user_repository
-from services.mailer import Mail
+from services.auth.mailer import Mail
 
 CODE_EXPIRE_MINUTES = 10
 MAX_ATTEMPTS = 5

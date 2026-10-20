@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-import services.mailer as mailer_module
-from services.mailer import ConsoleMailer, Mail, SmtpMailer, get_mailer, send_safely
+import services.auth.mailer as mailer_module
+from services.auth.mailer import ConsoleMailer, Mail, SmtpMailer, get_mailer, send_safely
 
 MAIL = Mail(to="mom@example.com", subject="제목", body="인증 코드: 123456")
 

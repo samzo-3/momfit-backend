@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from core.errors import AppError
 from core.security import decode_access_token
 from db.session import get_db
-from models.user import User
+from models.user import STATUS_ACTIVE, User
 from repositories import user_repository
 
 
@@ -16,7 +16,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if scheme.lower() != "bearer" or not token:
         raise AppError(401, "UNAUTHORIZED", "인증이 필요합니다.")
     user = user_repository.get_by_id(db, decode_access_token(token))
-    if user is None:
+    # 탈퇴 유예 중인 계정은 이미 발급된 access 토큰이 남아 있어도 통과시키지 않는다.
+    if user is None or user.status != STATUS_ACTIVE:
         raise AppError(401, "UNAUTHORIZED", "인증이 필요합니다.")
     return user
 

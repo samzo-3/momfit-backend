@@ -8,7 +8,7 @@ import api.kakao_auth
 from models.auth_identity import AuthIdentity
 from models.refresh_token import RefreshToken
 from models.user import User
-from services.kakao_client import KakaoError, KakaoNotConfigured, KakaoProfile
+from services.auth.kakao_client import KakaoError, KakaoNotConfigured, KakaoProfile
 from tests.conftest import FakeKakaoClient
 from tests.helpers import kakao_login
 

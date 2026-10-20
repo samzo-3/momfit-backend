@@ -1,6 +1,6 @@
 """인증 요청·응답 스키마."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
@@ -64,6 +64,13 @@ class CheckLoginIdResponse(BaseModel):
     """아이디 중복 확인 응답."""
 
     available: bool
+
+
+class RestoreInfoResponse(BaseModel):
+    """탈퇴 유예 중인 계정의 복구 화면용 일정. 시각은 UTC(Z)다."""
+
+    withdrawn_at: datetime
+    purge_at: datetime
 
 
 class TokenResponse(BaseModel):

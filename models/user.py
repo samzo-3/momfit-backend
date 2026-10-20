@@ -13,6 +13,10 @@ if TYPE_CHECKING:
     from models.auth_identity import AuthIdentity
 
 
+STATUS_ACTIVE = "active"
+STATUS_WITHDRAWN = "withdrawn"
+
+
 class User(Base):
     """사용자 프로필. 로그인 수단은 AuthIdentity가 가진다."""
 
@@ -33,6 +37,12 @@ class User(Base):
     modified_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, onupdate=utc_now
     )
+    # active: 이용 중 / withdrawn: 탈퇴 유예 중(로그인할 수 없고, 유예 기간이 지나면 완전히 삭제된다)
+    status: Mapped[str] = mapped_column(
+        String(20), default=STATUS_ACTIVE, server_default=STATUS_ACTIVE
+    )
+    # 탈퇴를 요청한 시각. 이 시각에서 유예 기간이 지나면 삭제 대상이 된다. 복구하면 NULL로 돌아간다.
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     identities: Mapped[list["AuthIdentity"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
