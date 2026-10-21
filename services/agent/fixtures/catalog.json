@@ -1,10 +1,9 @@
 {
-  "note": "develop #9 팀 모델 모양의 가짜 행. 세 시나리오가 함께 쓰고, DB 모드 테스트는 이 행을 팀 모델로 그대로 넣어 fixture 모드와 결과를 맞춘다. voice_cues는 스텝 전용 → 운동 전용 → 공통 우선순위, message가 빈 안내 건너뛰기, STUDY가 아닌 안내 제외를 확인할 수 있게 겹쳐 두었다.",
+  "note": "develop #15 팀 모델 모양의 가짜 행. 세 시나리오가 함께 쓰고, DB 모드 테스트는 이 행을 팀 모델로 그대로 넣어 fixture 모드와 결과를 맞춘다. voice_cues는 스텝 전용 → 운동 전용 → 공통 우선순위, message가 빈 안내 건너뛰기, STUDY가 아닌 안내 제외를 확인할 수 있게 겹쳐 두었다.",
   "exercises": [
     {
       "id": 1,
       "exercise_name": "사이드 스텝 & 열린 창문",
-      "target_reps": 10,
       "video_url": "/media/videos/exercises/side-step-open-window/guide-v1.mp4",
       "description": "옆으로 스텝을 밟으며 양팔을 벌리는 운동입니다."
     }
@@ -13,9 +12,10 @@
     {
       "id": 1,
       "exercise_id": 1,
-      "version": "1.0.1",
-      "target_sets": 10,
-      "score_per_set": 10.0
+      "evaluation_criteria": {},
+      "criteria_version": "0.1.0",
+      "schema_version": 1,
+      "status": "ACTIVE"
     }
   ],
   "exercise_steps": [

@@ -16,7 +16,7 @@
 | `models/agent/` | `agent_feedback.py` | `agent_feedback` 테이블 (에이전트의 유일한 쓰기 대상) |
 | `repositories/agent/` | `agent_feedback_repository.py` | STEP 메모·DAILY 저장과 조회 |
 | `repositories/agent/` | `team_activity_reader.py` | 팀 운동 기록 읽기 전용 (SQL / fixture) |
-| `services/agent/` | `config.py` | `AGENT_*` 환경변수, 팀 코드에서 가져온 상수(develop #9 기준), 프롬프트·규칙 로더 |
+| `services/agent/` | `config.py` | `AGENT_*` 환경변수, 팀 코드에서 가져온 상수(develop #15 기준), 프롬프트·규칙 로더 |
 | `services/agent/` | `report_stats.py` | 집계·후보 고르기·`is_comparable` (순수 함수) |
 | `services/agent/` | `step_memory.py` | STEP 기억 쓰기 (`update_step_memory`, 따라잡기) |
 | `services/agent/` | `daily_report.py` | DAILY 기억 꺼내기 (처리 순서 8단계) |
@@ -54,11 +54,11 @@ background_tasks.add_task(update_step_memory, record.id)
   실제 사용자 계정에 쌓이지 않게 하고, STEP 메모의 FK가 DB에 없는 가짜 기록 번호를 가리켜 MySQL이
   거부하는 일을 막는다. 그래서 fixture 모드에서는 요청마다 STEP 메모를 새로 만든다.
 - 팀 테이블은 읽기만 한다. 쓰기는 `agent_feedback` 하나뿐이다. 읽는 팀 테이블은 `exercises`,
-  `exercise_steps`, `exercise_criteria_versions`, `exercise_records`, `exercise_step_records`,
-  `voice_cues`다.
+  `exercise_steps`, `exercise_records`, `exercise_step_records`, `voice_cues`다.
 - 일반 운동 점수(`exercise_records.total_score`)는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다.
-  리포트는 `exercise_criteria_versions`로 '완료 세트 / 목표 세트'를 되돌려 보여 주고, LLM에는
-  일반 운동 점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
+  리포트는 '완료 세트 / 목표 세트'로 보여 준다. 완료 세트는 `exercise_records.completed_sets`,
+  목표 세트는 팀 점수 규칙(`services/exercise_scoring_config.py`)에서 읽는다. LLM에는 일반 운동
+  점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
 - 스텝 통과 횟수는 `exercise_step_records.status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
   부를지는 지금처럼 `step_report`의 CV 판정과 피드백 코드로 정한다.
 - 숫자와 판정은 코드가, 문장은 LLM이 쓴다. 무엇을 기억할지와 다음 집중 스텝 후보도 코드가 정한다.
@@ -158,7 +158,7 @@ ANTHROPIC_API_KEY=...
 
 ## 팀 코드에서 가져온 값과 팀 확인 대기
 
-컬럼 이름, `status`·`category` 값, 점수 범위는 develop #9의 팀 모델·스키마에 맞췄다. `config.py`
+컬럼 이름, `status`·`category` 값, 점수 범위, 목표 세트는 develop #15의 팀 모델·스키마·점수 규칙에 맞췄다. `config.py`
 위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
 아직 팀 확인을 기다리는 것:
@@ -166,5 +166,5 @@ ANTHROPIC_API_KEY=...
 - `agent_feedback.exercise_step_records_id`의 NULL 허용 (DAILY 행은 비어야 한다. 팀 최종 ERD는 NOT NULL)
 - 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 CV 명세의 예시 6개)
 
-읽지 않는 컬럼: `exercise_records.is_completed`(develop #9에서는 `status`가 `COMPLETED`일 때만 참이라
+읽지 않는 컬럼: `exercise_records.is_completed`(develop #15에서는 `status`가 `completed`일 때만 참이라
 `status`와 같은 뜻이다. 완료 수는 `status` 하나로만 센다), `user_goal`(의미 미확정).

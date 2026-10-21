@@ -1,4 +1,4 @@
-"""services/agent/fixtures의 가짜 기록을 팀 모델(develop #9)로 테스트 DB에 넣는다.
+"""services/agent/fixtures의 가짜 기록을 팀 모델(develop #15)로 테스트 DB에 넣는다.
 
 DB 모드 테스트가 fixture 모드와 같은 행을 쓰게 해서 두 모드의 결과를 맞춰 볼 수 있게 한다.
 """
@@ -17,7 +17,7 @@ from models.exercise_step_record import ExerciseStepRecord
 from models.voice_cue import VoiceCue
 from services.agent import config
 
-DECIMAL_FIELDS = {"total_score", "step_score", "score_per_set"}
+DECIMAL_FIELDS = {"total_score", "step_score"}
 
 
 def _load(name: str) -> dict:

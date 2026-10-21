@@ -1,6 +1,6 @@
 """팀 운동 기록 테이블 읽기 전용 계층.
 
-팀 테이블 모양은 develop #9의 팀 모델을 따른다. 실데이터가 없는 개발 환경에서도 돌릴 수 있게
+팀 테이블 모양은 develop #15의 팀 모델을 따른다. 실데이터가 없는 개발 환경에서도 돌릴 수 있게
 읽는 쪽을 Protocol로 두고, SQL 리더와 fixture 리더를 함께 둔다. 두 리더는 같은 결과를 내야 한다.
 
 - 팀 테이블은 읽기만 한다. 쓰기는 agent_feedback 하나뿐이다. (agent_feedback_repository)
@@ -82,18 +82,6 @@ class ExerciseRow:
 
     id: int
     exercise_name: str
-    target_reps: int | None
-
-
-@dataclass(frozen=True)
-class CriteriaVersionRow:
-    """exercise_criteria_versions 한 줄. 일반 운동 점수를 세트 수로 되돌릴 때 쓴다."""
-
-    id: int
-    exercise_id: int
-    version: str
-    target_sets: int
-    score_per_set: float
 
 
 @dataclass(frozen=True)
@@ -115,6 +103,7 @@ class ExerciseRecordRow:
     exercise_id: int
     exercise_criteria_version_id: int | None
     total_score: float | None
+    completed_sets: int | None
     status: str | None
     started_at: datetime | None
     ended_at: datetime | None
@@ -210,6 +199,17 @@ def _score(value: Any) -> float | None:
     return number
 
 
+def _count(value: Any) -> int | None:
+    """완료 세트 수를 int로 바꾼다. 없거나 음수면 None으로 둔다."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number >= 0 else None
+
+
 def _moment(value: Any) -> datetime | None:
     """DB·fixture의 시각 값을 naive datetime으로 바꾼다."""
     if value is None:
@@ -267,6 +267,7 @@ def _build_exercise_record(row: dict[str, Any]) -> ExerciseRecordRow:
             else int(row["exercise_criteria_version_id"])
         ),
         total_score=_score(row.get("total_score")),
+        completed_sets=_count(row.get("completed_sets")),
         status=row.get("status"),
         started_at=_moment(row.get("started_at")),
         ended_at=_moment(row.get("ended_at")),
@@ -285,16 +286,6 @@ def _build_step_record(row: dict[str, Any]) -> StepRecordRow:
         created_at=_moment(row["created_at"]),
         modified_at=_moment(row.get("modified_at")),
         **fields,
-    )
-
-
-def _build_criteria_version(row: dict[str, Any]) -> CriteriaVersionRow:
-    return CriteriaVersionRow(
-        id=int(row["id"]),
-        exercise_id=int(row["exercise_id"]),
-        version=str(row["version"]),
-        target_sets=int(row["target_sets"]),
-        score_per_set=float(row["score_per_set"]),
     )
 
 
@@ -390,8 +381,6 @@ class TeamActivityReader(Protocol):
 
     def get_exercises(self, ids: list[int]) -> list[ExerciseRow]: ...
 
-    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]: ...
-
     def get_correction_cues(
         self, event_codes: list[str], exercise_step_id: int, exercise_id: int
     ) -> dict[str, CorrectionCue]: ...
@@ -431,7 +420,7 @@ class SqlTeamActivityReader:
         rows = self._rows(
             """
             SELECT id, exercise_id, exercise_criteria_version_id, total_score,
-                   status, started_at, ended_at, created_at
+                   completed_sets, status, started_at, ended_at, created_at
               FROM exercise_records
              WHERE user_id = :user_id
                AND created_at >= :start AND created_at < :end
@@ -504,7 +493,7 @@ class SqlTeamActivityReader:
             return []
         rows = self._rows(
             """
-            SELECT id, exercise_name, target_reps
+            SELECT id, exercise_name
               FROM exercises
              WHERE id IN :ids
              ORDER BY id
@@ -515,24 +504,9 @@ class SqlTeamActivityReader:
             ExerciseRow(
                 id=int(row["id"]),
                 exercise_name=row["exercise_name"],
-                target_reps=row.get("target_reps"),
             )
             for row in rows
         ]
-
-    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]:
-        if not ids:
-            return []
-        rows = self._rows(
-            """
-            SELECT id, exercise_id, version, target_sets, score_per_set
-              FROM exercise_criteria_versions
-             WHERE id IN :ids
-             ORDER BY id
-            """,
-            {"ids": list(ids)},
-        )
-        return [_build_criteria_version(row) for row in rows]
 
     def get_correction_cues(
         self, event_codes: list[str], exercise_step_id: int, exercise_id: int
@@ -569,7 +543,7 @@ class SqlTeamActivityReader:
         record_rows = self._rows(
             """
             SELECT id, exercise_id, exercise_criteria_version_id, total_score,
-                   status, started_at, ended_at, created_at
+                   completed_sets, status, started_at, ended_at, created_at
               FROM exercise_records
              WHERE user_id = :user_id
                AND created_at >= :start AND created_at < :end
@@ -607,7 +581,6 @@ class FixtureTeamActivityReader:
         self._exercises = catalog["exercises"]
         self._steps = catalog["exercise_steps"]
         self._cues = catalog["voice_cues"]
-        self._criteria = catalog["exercise_criteria_versions"]
         self._records = scenario.get("exercise_records", [])
         self._step_records = scenario.get("exercise_step_records", [])
 
@@ -671,17 +644,8 @@ class FixtureTeamActivityReader:
             ExerciseRow(
                 id=int(row["id"]),
                 exercise_name=row["exercise_name"],
-                target_reps=row.get("target_reps"),
             )
             for row in self._exercises
-            if int(row["id"]) in wanted
-        ]
-
-    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]:
-        wanted = set(ids)
-        return [
-            _build_criteria_version(row)
-            for row in sorted(self._criteria, key=lambda item: int(item["id"]))
             if int(row["id"]) in wanted
         ]
 

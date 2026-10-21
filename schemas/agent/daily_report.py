@@ -16,7 +16,7 @@ class DailyReportRequest(BaseModel):
 
 
 class SetProgressResponse(BaseModel):
-    """일반 운동 기록 하나의 완료 세트 / 목표 세트. 점수로 되돌릴 수 없으면 null이다."""
+    """일반 운동 기록 하나의 완료 세트 / 목표 세트. 팀 점수 규칙에 없는 운동이면 target_sets가 null이다."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,7 +31,6 @@ class ExerciseSummaryResponse(BaseModel):
 
     exercise_id: int
     exercise_name: str
-    target_reps: int | None
     record_count: int
     best_score: float | None
     first_score: float | None

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from services.exercise_scoring_config import get_scoring_rule
+
 AGENT_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = AGENT_DIR / "prompts"
 RULES_DIR = AGENT_DIR / "rules"
@@ -27,15 +29,28 @@ STEP_REPORT_COLUMN = "step_report"
 #  services/exercise_record_score.py의 total_score 100점 상한)
 SCORE_MIN = 0.0
 SCORE_MAX = 100.0
-# exercise_records.status. IN_PROGRESS / PAUSED / COMPLETED 중 하나다.
-# (develop #9 기준: schemas/exercise_record.py)
-EXERCISE_STATUS_COMPLETED = "COMPLETED"
+# exercise_records.status. in_progress / paused / completed 중 하나다.
+# (develop #15 기준: schemas/exercise_record.py, services/exercise_record_service.py)
+EXERCISE_STATUS_COMPLETED = "completed"
 # exercise_step_records.status. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
 # PASS는 80점 이상일 때만 저장된다. (develop #9 기준: schemas/exercise_step_record.py)
 STEP_STATUS_PASS = "PASS"
 # voice_cues.category. 자세 배우기 안내만 교정 문장으로 쓴다. TRACKING / EXERCISE / STUDY 중 하나다.
 # (develop #9 기준: schemas/voice_cue.py, repositories/voice_cue_repository.py)
 VOICE_CUE_CATEGORY_STUDY = "STUDY"
+
+
+def target_sets_of(exercise_id: int) -> int | None:
+    """일반 운동의 목표 세트 수. 팀 점수 규칙에 없는 운동이면 None이다.
+
+    목표 세트는 DB가 아니라 팀 코드에 있다. 완료 세트는 exercise_records.completed_sets에 있다.
+    (develop #15 기준: services/exercise_scoring_config.py의 get_scoring_rule)
+    """
+    try:
+        return get_scoring_rule(exercise_id).target_sets
+    except ValueError:
+        return None
+
 
 # --- 에이전트 자체 한계값 ---------------------------------------------------
 

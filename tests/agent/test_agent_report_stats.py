@@ -3,7 +3,6 @@
 from datetime import date, datetime, timedelta
 
 from repositories.agent.team_activity_reader import (
-    CriteriaVersionRow,
     ExerciseRecordRow,
     ExerciseRow,
     StepRecordRow,
@@ -14,9 +13,9 @@ from services.agent.report_stats import (
     SetProgress,
     build_focus,
     build_stats,
-    completed_sets_of,
     is_comparable,
 )
+from services.agent import config
 
 TODAY = date(2026, 10, 19)
 BASE = datetime(2026, 10, 19, 1, 0)
@@ -32,16 +31,18 @@ def _record(
     rid: int,
     *,
     score: float | None = 70.0,
-    status: str = "COMPLETED",
+    sets: int | None = 7,
+    status: str = "completed",
     minutes: int | None = 10,
-    version: int | None = 1,
+    exercise_id: int = 1,
 ) -> ExerciseRecordRow:
     started = BASE + timedelta(minutes=rid)
     return ExerciseRecordRow(
         id=rid,
-        exercise_id=1,
-        exercise_criteria_version_id=version,
+        exercise_id=exercise_id,
+        exercise_criteria_version_id=1,
         total_score=score,
+        completed_sets=sets,
         status=status,
         started_at=started if minutes is not None else None,
         ended_at=started + timedelta(minutes=minutes) if minutes is not None else None,
@@ -88,17 +89,7 @@ def _step_row(step_id: int, order: int, name: str) -> StepRow:
 
 
 STEPS = [_step_row(11, 1, "준비 자세"), _step_row(12, 2, "오른쪽 스텝"), _step_row(13, 3, "왼쪽 스텝")]
-EXERCISES = [ExerciseRow(id=1, exercise_name="사이드 스텝", target_reps=10)]
-# develop #9 시드와 같은 기준: 10세트, 세트당 10점
-CRITERIA = CriteriaVersionRow(
-    id=1, exercise_id=1, version="1.0.1", target_sets=10, score_per_set=10.0
-)
-
-
-def _criteria(target_sets: int, score_per_set: float) -> CriteriaVersionRow:
-    return CriteriaVersionRow(
-        id=1, exercise_id=1, version="x", target_sets=target_sets, score_per_set=score_per_set
-    )
+EXERCISES = [ExerciseRow(id=1, exercise_name="사이드 스텝")]
 
 
 def _stats(records=(), attempts=(), due_date=date(2026, 12, 1)):
@@ -107,7 +98,6 @@ def _stats(records=(), attempts=(), due_date=date(2026, 12, 1)):
         step_records=list(attempts),
         exercises=EXERCISES,
         steps=STEPS,
-        criteria=[CRITERIA],
         due_date=due_date,
         today=TODAY,
     )
@@ -149,8 +139,8 @@ def test_시간이_빈_기록은_운동_시간에서_빠진다() -> None:
 
 
 def test_완료_수는_status로만_센다() -> None:
-    # is_completed는 status가 COMPLETED일 때만 참이라(develop #9) 따로 읽지 않는다.
-    stats = _stats(records=[_record(1, status="COMPLETED"), _record(2, status="PAUSED")])
+    # is_completed는 status가 completed일 때만 참이라(develop #15) 따로 읽지 않는다.
+    stats = _stats(records=[_record(1, status="completed"), _record(2, status="paused")])
 
     assert stats.completed_count == 1
     assert stats.incomplete_count == 1
@@ -169,7 +159,13 @@ def test_운동별로_최고_처음_마지막_점수를_모은다() -> None:
 
 def test_일반_운동은_기록마다_완료_세트와_목표_세트를_함께_둔다() -> None:
     # total_score는 자세 점수가 아니라 완료 세트 × 세트당 점수다.
-    stats = _stats(records=[_record(1, score=60.0), _record(2, score=100.0, status="PAUSED")])
+    # 완료 세트는 기록의 completed_sets, 목표 세트는 팀 점수 규칙(운동 1 = 10세트)에서 온다.
+    stats = _stats(
+        records=[
+            _record(1, score=60.0, sets=6),
+            _record(2, score=100.0, sets=10, status="paused"),
+        ]
+    )
 
     assert stats.exercises[0].sets == (
         SetProgress(completed_sets=6, target_sets=10),
@@ -177,24 +173,16 @@ def test_일반_운동은_기록마다_완료_세트와_목표_세트를_함께_
     )
 
 
-def test_기준_버전을_모르면_세트_수를_비워_둔다() -> None:
-    stats = _stats(records=[_record(1, score=60.0, version=99)])
+def test_점수_규칙에_없는_운동은_목표_세트를_비워_둔다() -> None:
+    stats = _stats(records=[_record(1, score=60.0, sets=6, exercise_id=99)])
 
-    assert stats.exercises[0].sets == (SetProgress(completed_sets=None, target_sets=None),)
+    assert stats.exercises[0].sets == (SetProgress(completed_sets=6, target_sets=None),)
 
 
-def test_세트_수로_되돌릴_수_없는_점수는_지어내지_않는다() -> None:
-    assert completed_sets_of(0.0, CRITERIA) == 0
-    assert completed_sets_of(None, CRITERIA) is None
-    assert completed_sets_of(60.0, None) is None
-    # 세트당 점수로 나누어떨어지지 않는다.
-    assert completed_sets_of(72.0, CRITERIA) is None
-    # 목표 세트보다 많다.
-    assert completed_sets_of(60.0, _criteria(target_sets=3, score_per_set=10.0)) is None
-    # 100점 상한에 걸리면 몇 세트인지 하나로 정할 수 없다. (12세트 × 10점)
-    assert completed_sets_of(100.0, _criteria(target_sets=12, score_per_set=10.0)) is None
-    assert completed_sets_of(90.0, _criteria(target_sets=12, score_per_set=10.0)) == 9
-    assert completed_sets_of(10.0, _criteria(target_sets=10, score_per_set=0.0)) is None
+def test_목표_세트는_팀_점수_규칙에서_가져온다() -> None:
+    # develop #15 기준: services/exercise_scoring_config.py
+    assert config.target_sets_of(1) == 10
+    assert config.target_sets_of(99) is None
 
 
 def test_스텝별_통과_횟수는_스텝_기록_status로_센다() -> None:

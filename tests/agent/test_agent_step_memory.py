@@ -130,10 +130,16 @@ def user(db_session: Session) -> User:
     row = User(nickname="맘핏", email="mom@example.com", onboarding_completed=True)
     db_session.add(row)
     # 메모가 가리킬 스텝 기록(_store)이 기대는 운동과 스텝
-    db_session.add(Exercise(id=1, exercise_name="사이드 스텝", target_reps=10))
+    db_session.add(Exercise(id=1, exercise_name="사이드 스텝", video_url="/media/guide.mp4"))
     db_session.flush()
     db_session.add_all(
-        ExerciseStep(id=step.id, exercise_id=1, step_order=step.step_order, step_name=step.step_name)
+        ExerciseStep(
+            id=step.id,
+            exercise_id=1,
+            step_order=step.step_order,
+            step_name=step.step_name,
+            clip_video_url="/media/step.mp4",
+        )
         for step in STEPS
     )
     db_session.commit()

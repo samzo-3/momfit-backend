@@ -1,4 +1,4 @@
-"""DB 모드 검사. 팀 모델(develop #9)로 테스트 DB에 행을 넣고 SqlTeamActivityReader로 리포트를 만든다.
+"""DB 모드 검사. 팀 모델(develop #15)로 테스트 DB에 행을 넣고 SqlTeamActivityReader로 리포트를 만든다.
 
 넣는 행은 services/agent/fixtures의 행 그대로다. 그래서 fixture 모드와 DB 모드가 같은 결과를 내는지도
 함께 확인한다.
