@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "criteria_version": "0.1.0",
+  "exercise_code": "SIDE_KICK_SIDE_BEND",
+  "mode": "STUDY",
+  "camera_view": "FRONT",
+  "reference_set": 3,
+  "review_status": "EXPERIMENTAL_NOT_APPROVED",
+  "steps": [
+    {
+      "step_no": 1,
+      "step_code": "READY",
+      "side": null,
+      "video_file": "side-kick&side-bend_step1.mp4",
+      "source_start_sec": 5.0,
+      "source_end_sec": 5.083,
+      "frame_count": 1,
+      "reference_metrics": {
+        "left_knee_angle_deg": {
+          "median": 178.9087,
+          "min": 178.9087,
+          "max": 178.9087,
+          "samples": 1
+        },
+        "right_knee_angle_deg": {
+          "median": 178.6884,
+          "min": 178.6884,
+          "max": 178.6884,
+          "samples": 1
+        },
+        "torso_lean_deg": {
+          "median": -0.3468,
+          "min": -0.3468,
+          "max": -0.3468,
+          "samples": 1
+        },
+        "left_ankle_away_ratio": {
+          "median": 0.1164,
+          "min": 0.1164,
+          "max": 0.1164,
+          "samples": 1
+        },
+        "right_ankle_away_ratio": {
+          "median": -0.6865,
+          "min": -0.6865,
+          "max": -0.6865,
+          "samples": 1
+        },
+        "left_ankle_lift_ratio": {
+          "median": -1.425,
+          "min": -1.425,
+          "max": -1.425,
+          "samples": 1
+        },
+        "right_ankle_lift_ratio": {
+          "median": -1.1649,
+          "min": -1.1649,
+          "max": -1.1649,
+          "samples": 1
+        }
+      },
+      "assessment_status": "REFERENCE_ONLY_NOT_APPROVED"
+    },
+    {
+      "step_no": 2,
+      "step_code": "RIGHT_RAISING",
+      "side": "RIGHT",
+      "video_file": "side-kick&side-bend_step2.mp4",
+      "source_start_sec": 5.083,
+      "source_end_sec": 5.355,
+      "frame_count": 10,
+      "reference_metrics": {
+        "left_knee_angle_deg": {
+          "median": 175.249,
+          "min": 173.9561,
+          "max": 178.9087,
+          "samples": 10
+        },
+        "right_knee_angle_deg": {
+          "median": 176.1222,
+          "min": 175.5373,
+          "max": 178.761,
+          "samples": 10
+        },
+        "torso_lean_deg": {
+          "median": -0.6104,
+          "min": -2.1393,
+          "max": 0.0213,
+          "samples": 10
+        },
+        "left_ankle_away_ratio": {
+          "median": 0.1597,
+          "min": 0.1164,
+          "max": 0.182,
+          "samples": 10
+        },
+        "right_ankle_away_ratio": {
+          "median": -1.0949,
+          "min": -1.2555,
+          "max": -0.6865,
+          "samples": 10
+        },
+        "left_ankle_lift_ratio": {
+          "median": -1.4788,
+          "min": -1.4915,
+          "max": -1.425,
+          "samples": 10
+        },
+        "right_ankle_lift_ratio": {
+          "median": -0.7848,
+          "min": -1.1649,
+          "max": -0.6704,
+          "samples": 10
+        }
+      },
+      "assessment_status": "REFERENCE_ONLY_NOT_APPROVED"
+    },
+    {
+      "step_no": 3,
+      "step_code": "RIGHT_RETURNING",
+      "side": "RIGHT",
+      "video_file": "side-kick&side-bend_step3.mp4",
+      "source_start_sec": 5.355,
+      "source_end_sec": 5.961,
+      "frame_count": 21,
+      "reference_metrics": {
+        "left_knee_angle_deg": {
+          "median": 175.4387,
+          "min": 173.6507,
+          "max": 177.5403,
+          "samples": 21
+        },
+        "right_knee_angle_deg": {
+          "median": 173.8709,
+          "min": 170.6652,
+          "max": 176.1753,
+          "samples": 21
+        },
+        "torso_lean_deg": {
+          "median": 0.4185,
+          "min": -2.1393,
+          "max": 2.0316,
+          "samples": 21
+        },
+        "left_ankle_away_ratio": {
+          "median": 0.1335,
+          "min": -0.0074,
+          "max": 0.1829,
+          "samples": 21
+        },
+        "right_ankle_away_ratio": {
+          "median": -0.4095,
+          "min": -1.2555,
+          "max": 0.0054,
+          "samples": 21
+        },
+        "left_ankle_lift_ratio": {
+          "median": -1.4687,
+          "min": -1.5156,
+          "max": -1.4365,
+          "samples": 21
+        },
+        "right_ankle_lift_ratio": {
+          "median": -1.3149,
+          "min": -1.4219,
+          "max": -0.682,
+          "samples": 21
+        }
+      },
+      "assessment_status": "REFERENCE_ONLY_NOT_APPROVED"
+    },
+    {
+      "step_no": 4,
+      "step_code": "LEFT_RAISING",
+      "side": "LEFT",
+      "video_file": "side-kick&side-bend_step4.mp4",
+      "source_start_sec": 6.172,
+      "source_end_sec": 6.475,
+      "frame_count": 11,
+      "reference_metrics": {
+        "left_knee_angle_deg": {
+          "median": 178.0124,
+          "min": 174.4186,
+          "max": 179.9191,
+          "samples": 11
+        },
+        "right_knee_angle_deg": {
+          "median": 176.3978,
+          "min": 175.8223,
+          "max": 179.0107,
+          "samples": 11
+        },
+        "torso_lean_deg": {
+          "median": -1.7226,
+          "min": -1.8933,
+          "max": -1.3197,
+          "samples": 11
+        },
+        "left_ankle_away_ratio": {
+          "median": -1.131,
+          "min": -1.2418,
+          "max": -0.5201,
+          "samples": 11
+        },
+        "right_ankle_away_ratio": {
+          "median": 0.148,
+          "min": 0.1041,
+          "max": 0.1576,
+          "samples": 11
+        },
+        "left_ankle_lift_ratio": {
+          "median": -0.9348,
+          "min": -1.2803,
+          "max": -0.7051,
+          "samples": 11
+        },
+        "right_ankle_lift_ratio": {
+          "median": -1.4938,
+          "min": -1.5223,
+          "max": -1.4074,
+          "samples": 11
+        }
+      },
+      "assessment_status": "REFERENCE_ONLY_NOT_APPROVED"
+    },
+    {
+      "step_no": 5,
+      "step_code": "LEFT_RETURNING",
+      "side": "LEFT",
+      "video_file": "side-kick&side-bend_step5.mp4",
+      "source_start_sec": 6.475,
+      "source_end_sec": 7.11,
+      "frame_count": 22,
+      "reference_metrics": {
+        "left_knee_angle_deg": {
+          "median": 171.2859,
+          "min": 167.9368,
+          "max": 179.8115,
+          "samples": 22
+        },
+        "right_knee_angle_deg": {
+          "median": 176.7822,
+          "min": 175.1028,
+          "max": 179.1543,
+          "samples": 22
+        },
+        "torso_lean_deg": {
+          "median": -1.404,
+          "min": -2.6548,
+          "max": -0.5018,
+          "samples": 22
+        },
+        "left_ankle_away_ratio": {
+          "median": -0.3239,
+          "min": -1.2418,
+          "max": 0.0048,
+          "samples": 22
+        },
+        "right_ankle_away_ratio": {
+          "median": 0.0939,
+          "min": -0.0888,
+          "max": 0.1576,
+          "samples": 22
+        },
+        "left_ankle_lift_ratio": {
+          "median": -1.3827,
+          "min": -1.4445,
+          "max": -0.7237,
+          "samples": 22
+        },
+        "right_ankle_lift_ratio": {
+          "median": -1.4459,
+          "min": -1.5223,
+          "max": -1.3671,
+          "samples": 22
+        }
+      },
+      "assessment_status": "REFERENCE_ONLY_NOT_APPROVED"
+    }
+  ]
+}

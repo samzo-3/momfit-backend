@@ -3,7 +3,29 @@
 from models.agent.agent_feedback import AgentFeedback
 from models.auth_identity import AuthIdentity
 from models.email_verification import EmailVerification
+from models.exercise import (
+    Exercise,
+)
+from models.exercise_criteria_version import ExerciseCriteriaVersion
+from models.exercise_record import ExerciseRecord
+from models.exercise_step import ExerciseStep
+from models.exercise_step_criteria_version import ExerciseStepCriteriaVersion
+from models.exercise_step_record import ExerciseStepRecord
 from models.refresh_token import RefreshToken
 from models.user import User
+from models.user_goal import UserGoal
 
-__all__ = ["AgentFeedback", "AuthIdentity", "EmailVerification", "RefreshToken", "User"]
+__all__ = [
+    "AgentFeedback",
+    "AuthIdentity",
+    "EmailVerification",
+    "Exercise",
+    "ExerciseCriteriaVersion",
+    "ExerciseRecord",
+    "ExerciseStep",
+    "ExerciseStepCriteriaVersion",
+    "ExerciseStepRecord",
+    "RefreshToken",
+    "User",
+    "UserGoal",
+]
