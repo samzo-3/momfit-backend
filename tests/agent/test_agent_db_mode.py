@@ -17,12 +17,14 @@ from models.agent.agent_feedback import (
     FEEDBACK_TYPE_STEP,
     AgentFeedback,
 )
+from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
     SqlTeamActivityReader,
 )
+
 from services.agent.daily_report import DailyReportResult, build_daily_report
 from services.agent.llm import Usage
 from services.agent.report_stats import SetProgress
@@ -181,6 +183,14 @@ def test_fixture_모드와_DB_모드는_같은_결과를_낸다(
 
 def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: Session, user: User) -> None:
     seed_scenario(db_session, user.id, "not_evaluated_unscored")
+
+    # 최신 ERD: 스텝 기록의 필수 운동 평가 기준 버전 FK를 실제 테스트 데이터에 연결한다.
+    criteria_version = (
+        db_session.query(ExerciseCriteriaVersion)
+        .filter_by(exercise_id=1, status="ACTIVE")
+        .one()
+    )
+
     # 팀 API는 step_report를 보내지 않으면 {}로 저장한다.
     db_session.add(
         ExerciseStepRecord(
@@ -188,7 +198,9 @@ def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: 
             user_id=user.id,
             exercise_id=1,
             exercise_step_id=11,
-            status="NON_PASS",
+            exercise_criteria_version_id=criteria_version.id,
+            status="completed",
+            step_result_status="NON_PASS",
             step_score=Decimal("60.00"),
             step_report={},
             created_at=datetime(2026, 10, 20, 1, 30),

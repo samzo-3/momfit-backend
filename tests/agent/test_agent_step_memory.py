@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from models.agent.agent_feedback import FEEDBACK_TYPE_STEP, AgentFeedback
 from models.exercise import Exercise
+from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_step import ExerciseStep
 from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
@@ -132,6 +133,17 @@ def user(db_session: Session) -> User:
     # 메모가 가리킬 스텝 기록(_store)이 기대는 운동과 스텝
     db_session.add(Exercise(id=1, exercise_name="사이드 스텝", video_url="/media/guide.mp4"))
     db_session.flush()
+    db_session.add(
+        ExerciseCriteriaVersion(
+            id=1,  # SQLite 테스트 DB: BIGINT PK는 자동 증가하지 않음
+            exercise_id=1,
+            evaluation_criteria={},
+            criteria_version="1.0.0",
+            schema_version=1,
+            status="ACTIVE",
+        )
+    )
+    db_session.flush()
     db_session.add_all(
         ExerciseStep(
             id=step.id,
@@ -151,6 +163,14 @@ def _store(db: Session, user: User, attempts: list[StepRecordRow]) -> None:
 
     이 파일의 검사는 시도를 리더 없이 바로 넘기므로, 넣는 행은 FK를 채우는 용도일 뿐이다.
     """
+    criteria_version = (
+        db.query(ExerciseCriteriaVersion)
+        .filter(
+            ExerciseCriteriaVersion.exercise_id == 1,
+            ExerciseCriteriaVersion.status == "ACTIVE",
+        )
+        .one()
+    )
     for attempt in attempts:
         if db.get(ExerciseStepRecord, attempt.id) is not None:
             continue
@@ -160,7 +180,9 @@ def _store(db: Session, user: User, attempts: list[StepRecordRow]) -> None:
                 user_id=user.id,
                 exercise_id=attempt.exercise_id,
                 exercise_step_id=attempt.exercise_step_id,
-                status=attempt.status,
+                exercise_criteria_version_id=criteria_version.id,
+                status="completed",
+                step_result_status=attempt.status,
                 step_score=None if attempt.step_score is None else Decimal(str(attempt.step_score)),
                 step_report={},
                 created_at=attempt.created_at,
