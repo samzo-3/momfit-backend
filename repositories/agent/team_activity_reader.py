@@ -434,7 +434,7 @@ class SqlTeamActivityReader:
         start, end = kst_day_bounds_utc(day)
         rows = self._rows(
             f"""
-            SELECT id, exercise_id, exercise_step_id, status, step_score,
+            SELECT id, exercise_id, exercise_step_id, step_result_status AS status, step_score,
                    {config.STEP_REPORT_COLUMN}, created_at, modified_at
               FROM exercise_step_records
              WHERE user_id = :user_id
@@ -553,7 +553,7 @@ class SqlTeamActivityReader:
         )
         step_rows = self._rows(
             f"""
-            SELECT id, exercise_id, exercise_step_id, status, step_score,
+            SELECT id, exercise_id, exercise_step_id, step_result_status AS status, step_score,
                    {config.STEP_REPORT_COLUMN}, created_at, modified_at
               FROM exercise_step_records
              WHERE user_id = :user_id
@@ -690,3 +690,4 @@ def build_team_activity_reader(db: Session) -> TeamActivityReader:
 def get_team_activity_reader(db: Session = Depends(get_db)) -> TeamActivityReader:
     """라우터용 의존성. 테스트는 dependency_overrides로 fixture 리더를 끼운다."""
     return build_team_activity_reader(db)
+

@@ -18,6 +18,7 @@ from models.voice_cue import VoiceCue
 from services.agent import config
 
 DECIMAL_FIELDS = {"total_score", "step_score"}
+STEP_RESULT_STATUSES = {"PASS", "NON_PASS", "NOT_EVALUATED"}
 
 
 def _load(name: str) -> dict:
@@ -38,6 +39,32 @@ def _values(row: dict, user_id: int | None = None) -> dict:
     return values
 
 
+def _criteria_version_id(exercise_id: int, catalog: dict, rows: dict) -> int:
+    """시나리오에 쓰인 기준 버전을 우선 사용하고, 없으면 단일 ACTIVE 버전을 사용한다."""
+    record_ids = {
+        item["exercise_criteria_version_id"]
+        for item in rows["exercise_records"]
+        if item["exercise_id"] == exercise_id
+        and item.get("exercise_criteria_version_id") is not None
+    }
+    if len(record_ids) == 1:
+        return next(iter(record_ids))
+
+    active_ids = {
+        item["id"]
+        for item in catalog["exercise_criteria_versions"]
+        if item["exercise_id"] == exercise_id
+        and item.get("status", "ACTIVE") == "ACTIVE"
+    }
+    if len(active_ids) == 1:
+        return next(iter(active_ids))
+
+    raise ValueError(
+        f"운동 {exercise_id}의 평가 기준 버전을 하나로 결정할 수 없습니다. "
+        "scenario의 exercise_step_records에 exercise_criteria_version_id를 명시하세요."
+    )
+
+
 def seed_scenario(db: Session, user_id: int, scenario: str) -> None:
     """fixture 행을 팀 모델로 넣는다. 사용자 번호만 테스트 사용자로 바꾼다."""
     catalog = _load("catalog.json")
@@ -50,8 +77,24 @@ def seed_scenario(db: Session, user_id: int, scenario: str) -> None:
     ):
         db.add_all(model(**_values(item)) for item in items)
         db.flush()
+
     db.add_all(ExerciseRecord(**_values(item, user_id)) for item in rows["exercise_records"])
-    db.add_all(
-        ExerciseStepRecord(**_values(item, user_id)) for item in rows["exercise_step_records"]
-    )
+
+    step_records = []
+    for item in rows["exercise_step_records"]:
+        values = _values(item, user_id)
+
+        # 구형 fixture의 status는 판정 결과였으므로 신규 스텝 결과 필드로 옮긴다.
+        if values.get("status") in STEP_RESULT_STATUSES:
+            values.setdefault("step_result_status", values["status"])
+            values["status"] = "completed"
+
+        if values.get("exercise_criteria_version_id") is None:
+            values["exercise_criteria_version_id"] = _criteria_version_id(
+                values["exercise_id"], catalog, rows
+            )
+
+        step_records.append(ExerciseStepRecord(**values))
+
+    db.add_all(step_records)
     db.commit()

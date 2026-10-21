@@ -2,15 +2,17 @@
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, JSON, String
+from sqlalchemy import BigInteger, ForeignKey, Integer, JSON, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
 from models.timestamp_mixin import CreatedAtMixin
 
+
 if TYPE_CHECKING:
     from models.exercise import Exercise
     from models.exercise_record import ExerciseRecord
+    from models.exercise_step_record import ExerciseStepRecord
     from models.exercise_step_criteria_version import ExerciseStepCriteriaVersion
 
 
@@ -34,3 +36,6 @@ class ExerciseCriteriaVersion(CreatedAtMixin, Base):
     exercise: Mapped["Exercise"] = relationship(back_populates="criteria_versions")
     step_criteria_versions: Mapped[list["ExerciseStepCriteriaVersion"]] = relationship(back_populates="exercise_criteria_version")
     records: Mapped[list["ExerciseRecord"]] = relationship(back_populates="exercise_criteria_version")
+    step_records: Mapped[list["ExerciseStepRecord"]] = relationship(
+        back_populates="exercise_criteria_version"
+    )

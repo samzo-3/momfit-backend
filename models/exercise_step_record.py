@@ -12,11 +12,18 @@ from models.timestamp_mixin import TimestampMixin
 if TYPE_CHECKING:
     from models.exercise import Exercise
     from models.exercise_step import ExerciseStep
+    from models.exercise_criteria_version import ExerciseCriteriaVersion
     from models.user import User
 
 
+#스텝 기록 상태
 EXERCISE_RECORD_IN_PROGRESS = "in_progress"
 EXERCISE_RECORD_COMPLETED = "completed"
+
+# 스텝 평가 결과
+STEP_RESULT_NON_PASS = "NON_PASS"
+STEP_RESULT_NOT_EVALUATED = "NOT_EVALUATED"
+STEP_RESULT_PASS = "PASS"
 
 
 class ExerciseStepRecord(TimestampMixin, Base):
@@ -38,6 +45,24 @@ class ExerciseStepRecord(TimestampMixin, Base):
 
     exercise_step_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("exercise_steps.id"), index=True
+    )
+
+    exercise_criteria_version_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("exercise_criteria_versions.id"),
+        nullable=False,
+        index=True,
+    )
+
+    step_result_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=STEP_RESULT_NON_PASS,
+        server_default=text("'NON_PASS'"),
+    )
+
+    exercise_criteria_version: Mapped["ExerciseCriteriaVersion"] = relationship(
+        back_populates="step_records"
     )
 
     status: Mapped[str] = mapped_column(
