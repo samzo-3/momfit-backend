@@ -1,5 +1,5 @@
 """일반 운동 기록 요청 및 응답."""
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -29,3 +29,19 @@ class ExerciseRecordResponse(BaseModel):
     is_completed: bool
     created_at: datetime
     modified_at: datetime
+
+
+class ExerciseRecordSummary(BaseModel):
+    """캘린더용 요약. date는 started_at을 한국 시간(KST)으로 본 날짜다."""
+
+    id: int
+    exercise_id: int
+    status: Literal["in_progress", "paused", "completed"]
+    is_completed: bool
+    date: date
+    started_at: datetime
+    ended_at: datetime | None
+
+
+class ExerciseRecordListResponse(BaseModel):
+    items: list[ExerciseRecordSummary]
