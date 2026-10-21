@@ -212,45 +212,39 @@ def _last_touch(
     )
 
 
-def _past_report(
+def _saved_report(
     db: Session,
     user_id: int,
     day: date,
     stats: ReportStats,
     notice: str,
     last_touch: datetime,
-) -> DailyReportResult:
-    """지난 날짜의 리포트. 그날 마지막으로 저장한 리포트를 꺼내고, LLM은 부르지 않는다.
+) -> DailyReportResult | None:
+    """그날 마지막으로 저장한 리포트를 그대로 쓸 수 있으면 돌려준다. 쓸 수 없으면 None이다.
 
-    저장한 리포트를 그대로 쓰려면 둘 다 맞아야 한다.
-    1. 그날 기록이 마지막으로 바뀐 뒤에 만들었다 (아니면 한마디와 다시 센 숫자가 어긋난다)
-    2. 대체 문장이 아니다 (대체 문장의 '잠시 후 다시 확인'은 지난 날짜에서 지킬 수 없다)
-    하나라도 아니면 숫자만으로 쓴 문장을 돌려준다.
+    그대로 쓰려면 둘 다 맞아야 한다.
+    1. 그날 기록이 마지막으로 바뀐 뒤에 숫자를 셌다 (아니면 한마디와 다시 센 숫자가 어긋난다)
+    2. 대체 문장이 아니다 (대체 문장은 '잠시 후 다시 확인해 주세요'라고 했다. 오늘은 다시 만들어야
+       그 말이 맞고, 다시 만들지 않는 지난 날짜에서는 그 말을 지킬 수 없다)
     """
     row = agent_feedback_repository.latest_daily_report(
         db, user_id, report_date_of(day)
     )
     if (
-        row is not None
-        and row.today_summary
+        row is None
+        or not row.today_summary
         # 리포트 시각은 숫자를 센 시각이다. 둘 다 팀 규칙대로 naive UTC라 그대로 비교한다.
-        and row.created_at >= last_touch
-        and row.today_summary != _fallback_summary(stats)
+        or row.created_at < last_touch
+        or row.today_summary == _fallback_summary(stats)
     ):
-        summary, next_focus = _split_saved_row(row.today_summary, stats)
-        return DailyReportResult(
-            date=day,
-            stats=stats,
-            safety_notice=notice,
-            summary=summary,
-            next_focus=next_focus,
-        )
+        return None
+    summary, next_focus = _split_saved_row(row.today_summary, stats)
     return DailyReportResult(
         date=day,
         stats=stats,
         safety_notice=notice,
-        summary=_past_summary(stats),
-        fallback_reason=REASON_PAST_DAY,
+        summary=summary,
+        next_focus=next_focus,
     )
 
 
@@ -264,7 +258,8 @@ def build_daily_report(
 ) -> DailyReportResult:
     """하루 리포트를 만든다. 실패해도 예외를 내지 않고 대체 문장으로 돌려준다.
 
-    LLM은 오늘 리포트에만 부른다. 지난 날짜는 그날 만든 리포트를 그대로 돌려준다.
+    LLM은 오늘 리포트에만, 그것도 그날 마지막 리포트 뒤에 기록이 바뀌었을 때만 부른다.
+    지난 날짜는 다시 만들지 않고 그날 만든 리포트를 그대로 돌려준다.
     가짜 기록(reader.real_records가 False)이면 agent_feedback을 읽지도 쓰지도 않는다.
     저장한 리포트가 없으니 날짜와 상관없이 그날을 오늘로 보고 매번 새로 만든다.
     """
@@ -302,11 +297,22 @@ def build_daily_report(
             fallback_reason=REASON_NO_RECORDS,
         )
 
-    # 3. 지난 날짜는 다시 만들지 않는다. LLM을 부르지 않고 새로 저장하지도 않는다.
-    if past:
-        return _past_report(
+    # 3. 그날 저장한 리포트가 아직 맞으면 LLM 없이 그대로 돌려주고 새로 저장하지 않는다.
+    #    지난 날짜는 다시 만들지 않으니, 쓸 수 없으면 숫자만으로 쓴 문장을 돌려준다.
+    if save:
+        saved = _saved_report(
             db, user.id, day, stats, notice, _last_touch(records, step_records)
         )
+        if saved is not None:
+            return saved
+        if past:
+            return DailyReportResult(
+                date=day,
+                stats=stats,
+                safety_notice=notice,
+                summary=_past_summary(stats),
+                fallback_reason=REASON_PAST_DAY,
+            )
 
     labels = config.feedback_labels()
     grouped = report_stats.group_step_attempts(step_records)

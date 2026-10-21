@@ -144,6 +144,13 @@ def _rows(db: Session, feedback_type: str) -> list[AgentFeedback]:
     )
 
 
+def _touch_exercise_record(db: Session, moment: datetime | None = None) -> None:
+    """리포트를 만든 뒤 그날 운동 기록 하나가 바뀌었다고 본다(예: 일시정지했다가 나중에 완료)."""
+    record = db.query(ExerciseRecord).order_by(ExerciseRecord.id).first()
+    record.modified_at = moment or utc_now() + timedelta(minutes=1)
+    db.commit()
+
+
 def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_저장한다(
     client: TestClient, db_session: Session
 ) -> None:
@@ -316,34 +323,56 @@ def test_날짜를_비우면_오늘로_본다(
     assert body["date"] == today_kst().isoformat()
 
 
-def test_같은_날_다시_요청하면_새_행이_쌓인다(
-    client: TestClient, db_session: Session
-) -> None:
-    token = _token(client)
-    _use(db_session, ScriptedLlm())
-
-    _report(client, token)
-    _report(client, token)
-
-    rows = _rows(db_session, FEEDBACK_TYPE_DAILY)
-    assert len(rows) == 2
-    assert rows[-1].id > rows[0].id
-
-
-def test_두_번째_요청은_STEP_메모를_다시_쓰지_않는다(
+def test_오늘_다시_요청해도_기록이_그대로면_LLM_없이_저장한_리포트를_돌려준다(
     client: TestClient, db_session: Session
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm()
     _use(db_session, llm)
+    first = _report(client, token).json()
+    calls = len(llm.calls)
 
+    second = _report(client, token).json()
+
+    assert second["summary"] == first["summary"]
+    assert second["next_focus"] == first["next_focus"]
+    assert second["stats"] == first["stats"]
+    assert len(llm.calls) == calls
+    assert second["provider"] is None
+    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
+
+
+def test_운동_기록만_바뀌면_DAILY만_다시_부르고_STEP_메모는_다시_쓰지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
     _report(client, token)
     first_calls = len(llm.calls)
+    _touch_exercise_record(db_session)
+
     _report(client, token)
 
     # 첫 요청은 STEP 묶음 1번 + DAILY 1번, 두 번째 요청은 DAILY 1번만 부른다.
     assert first_calls == 2
     assert len(llm.calls) == 3
+    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 2
+
+
+def test_오늘_대체_문장이었으면_다시_요청할_때_LLM을_다시_부른다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(error=LlmTimeoutError("시간 초과")))
+    assert FALLBACK_TAIL in _report(client, token).json()["summary"]
+    _use(db_session, ScriptedLlm())
+
+    body = _report(client, token).json()
+
+    # 대체 문장은 '잠시 후 다시 확인해 주세요'라고 했으니 다시 만든다.
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 2
 
 
 def test_가짜_기록_모드는_agent_feedback을_읽지도_쓰지도_않는다(
@@ -398,8 +427,12 @@ def test_지난_날짜는_그날_마지막으로_만든_리포트를_돌려준�
     client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     token = _token(client)
+    _set_read_at(monkeypatch, datetime(2026, 10, 19, 5, 0))
     _use(db_session, ScriptedLlm())
     _report(client, token)
+    # 첫 리포트 뒤 기록이 바뀌어서, 그날 리포트를 한 번 더 만들었다.
+    _touch_exercise_record(db_session, datetime(2026, 10, 19, 5, 10))
+    _set_read_at(monkeypatch, datetime(2026, 10, 19, 5, 20))
     _use(
         db_session,
         ScriptedLlm(daily='{"summary": "오늘도 차근차근 해 주셨어요.", "next_focus": null}'),
@@ -411,6 +444,7 @@ def test_지난_날짜는_그날_마지막으로_만든_리포트를_돌려준�
 
     assert body["summary"] == "오늘도 차근차근 해 주셨어요."
     assert body["next_focus"] is None
+    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 2
 
 
 def test_지난_날짜에_리포트가_없으면_LLM_없이_숫자만_돌려준다(
@@ -438,10 +472,7 @@ def test_리포트를_만든_뒤_기록이_바뀌었으면_지난_날짜는_숫�
     _use(db_session, llm)
     _report(client, token)
     calls = len(llm.calls)
-    # 리포트를 만든 뒤 그날 운동 기록 하나가 바뀌었다(예: 일시정지했다가 나중에 완료).
-    record = db_session.query(ExerciseRecord).order_by(ExerciseRecord.id).first()
-    record.modified_at = utc_now() + timedelta(minutes=1)
-    db_session.commit()
+    _touch_exercise_record(db_session)
 
     _set_today(monkeypatch, VIEW_DAY)
     body = _report(client, token).json()

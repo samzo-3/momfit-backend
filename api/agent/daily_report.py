@@ -30,7 +30,7 @@ def create_daily_report(
 
     사실은 코드가 팀 테이블에서 계산하고, 문장만 LLM이 쓴다. LLM이 실패하면 숫자로 채운
     대체 문장을 돌려준다. 그 이유는 응답에 넣지 않고 서버 로그에만 남긴다.
-    지난 날짜는 LLM을 부르지 않고 그날 만든 리포트를 돌려준다. 없으면 숫자만 쓴 문장이다.
+    그날 마지막 리포트 뒤로 기록이 그대로면 LLM 없이 그 리포트를 돌려준다. 지난 날짜는 다시 만들지 않는다.
     """
     day = body.date if body and body.date else today_kst()
     result = daily_report.build_daily_report(db, user, day, reader, llm)
