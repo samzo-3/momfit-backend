@@ -22,7 +22,8 @@ class ExerciseRecordResponse(BaseModel):
     exercise_id: int
     exercise_criteria_version_id: int
     total_score: Decimal
-    status: Literal["IN_PROGRESS", "PAUSED", "COMPLETED"]
+    completed_sets: int
+    status: Literal["in_progress", "paused", "completed"]
     started_at: datetime
     ended_at: datetime | None
     is_completed: bool
