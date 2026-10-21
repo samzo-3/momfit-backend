@@ -47,6 +47,7 @@ def _record(
         started_at=started if minutes is not None else None,
         ended_at=started + timedelta(minutes=minutes) if minutes is not None else None,
         created_at=started,
+        modified_at=started,
     )
 
 

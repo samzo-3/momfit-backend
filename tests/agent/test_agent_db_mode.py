@@ -79,7 +79,8 @@ def user(db_session: Session) -> User:
 
 def _report(db: Session, user: User, day: date, reader) -> tuple[DailyReportResult, dict]:
     llm = CapturingLlm()
-    result = build_daily_report(db, user, day, reader, llm)
+    # 이 파일은 숫자와 LLM 입력을 본다. 지난 날짜 규칙에 걸리지 않게 그 날을 오늘로 본다.
+    result = build_daily_report(db, user, day, reader, llm, today=day)
     return result, llm.daily_payloads[-1]
 
 

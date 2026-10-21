@@ -17,6 +17,8 @@ REASON_TIMEOUT = "TIMEOUT"
 REASON_RATE_LIMIT = "RATE_LIMIT"
 REASON_NO_CONSENT = "NO_CONSENT"
 REASON_NO_RECORDS = "NO_RECORDS"
+# 지난 날짜라 다시 만들지 않고, 저장한 리포트도 쓸 수 없어 숫자만 썼다.
+REASON_PAST_DAY = "PAST_DAY"
 
 _WHITESPACE = re.compile(r"\s+")
 _FENCE_START = re.compile(r"^```[A-Za-z]*\n?")

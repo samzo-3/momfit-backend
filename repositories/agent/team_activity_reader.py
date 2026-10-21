@@ -108,6 +108,7 @@ class ExerciseRecordRow:
     started_at: datetime | None
     ended_at: datetime | None
     created_at: datetime
+    modified_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -272,6 +273,7 @@ def _build_exercise_record(row: dict[str, Any]) -> ExerciseRecordRow:
         started_at=_moment(row.get("started_at")),
         ended_at=_moment(row.get("ended_at")),
         created_at=_moment(row["created_at"]),
+        modified_at=_moment(row.get("modified_at")),
     )
 
 
@@ -420,7 +422,7 @@ class SqlTeamActivityReader:
         rows = self._rows(
             """
             SELECT id, exercise_id, exercise_criteria_version_id, total_score,
-                   completed_sets, status, started_at, ended_at, created_at
+                   completed_sets, status, started_at, ended_at, created_at, modified_at
               FROM exercise_records
              WHERE user_id = :user_id
                AND created_at >= :start AND created_at < :end
@@ -543,7 +545,7 @@ class SqlTeamActivityReader:
         record_rows = self._rows(
             """
             SELECT id, exercise_id, exercise_criteria_version_id, total_score,
-                   completed_sets, status, started_at, ended_at, created_at
+                   completed_sets, status, started_at, ended_at, created_at, modified_at
               FROM exercise_records
              WHERE user_id = :user_id
                AND created_at >= :start AND created_at < :end

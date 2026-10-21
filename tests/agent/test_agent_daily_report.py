@@ -4,11 +4,13 @@
 """
 
 import json
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from core.clock import utc_now
 from main import app
 from models.agent.agent_feedback import (
     FEEDBACK_TYPE_DAILY,
@@ -16,12 +18,15 @@ from models.agent.agent_feedback import (
     AgentFeedback,
 )
 from models.exercise import Exercise
+from models.exercise_record import ExerciseRecord
 from models.user import User
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
     SqlTeamActivityReader,
     get_team_activity_reader,
+    report_date_of,
 )
+from services.agent import daily_report as daily_report_service
 from services.agent.llm import (
     LlmError,
     LlmRateLimitedError,
@@ -38,6 +43,25 @@ FALLBACK_TAIL = "자세한 안내는 잠시 후 다시 확인해 주세요."
 EMPTY_DAY = "2026-10-21"
 RECORD_DAY = "2026-10-19"
 NO_SCORE_DAY = "2026-10-20"
+# 10월 19일 리포트를 다시 보는 날. 이날 오늘은 21일이라 19일은 지난 날짜다.
+VIEW_DAY = "2026-10-21"
+# 10월 19일 기록(evaluated)을 숫자만으로 쓴 지난 날짜 문장
+PAST_SUMMARY = "이날 운동 3회, 자세 배우기 7번 하신 기록이 있어요. 운동 시간은 모두 36분이에요."
+
+
+def _set_today(monkeypatch: pytest.MonkeyPatch, day: str) -> None:
+    monkeypatch.setattr(
+        daily_report_service, "today_kst", lambda: date.fromisoformat(day)
+    )
+
+
+@pytest.fixture(autouse=True)
+def _record_day_is_today(monkeypatch: pytest.MonkeyPatch) -> None:
+    """시나리오 기록 날짜(10월 19일)를 오늘로 본다. 그보다 늦은 날짜는 지난 날짜가 아니라 지금처럼 만든다.
+
+    지난 날짜 규칙은 아래 검사에서 _set_today로 오늘을 옮겨 가며 본다.
+    """
+    _set_today(monkeypatch, RECORD_DAY)
 
 
 class ScriptedLlm:
@@ -337,6 +361,160 @@ def test_가짜_기록_모드는_agent_feedback을_읽지도_쓰지도_않는다
     assert db_session.query(AgentFeedback).count() == 0
     # 저장한 메모가 없으니 요청마다 STEP 묶음 1번 + DAILY 1번을 부른다.
     assert len(llm.calls) == 4
+
+
+def test_지난_날짜는_그날_만든_리포트를_LLM_없이_그대로_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    made = _report(client, token).json()
+    calls = len(llm.calls)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    seen = _report(client, token).json()
+
+    assert seen["summary"] == made["summary"]
+    assert seen["next_focus"] == made["next_focus"] == {
+        "step_id": 12,
+        "reason": "다음에는 이 스텝에 조금 더 신경 써 봐요.",
+    }
+    assert seen["stats"] == made["stats"]
+    assert len(llm.calls) == calls
+    assert seen["provider"] is None
+    assert seen["prompt_version"] is None
+    assert seen["latency_ms"] is None
+    # 지난 날짜는 새로 저장하지 않는다.
+    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
+
+
+def test_지난_날짜는_그날_마지막으로_만든_리포트를_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm())
+    _report(client, token)
+    _use(
+        db_session,
+        ScriptedLlm(daily='{"summary": "오늘도 차근차근 해 주셨어요.", "next_focus": null}'),
+    )
+    _report(client, token)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == "오늘도 차근차근 해 주셨어요."
+    assert body["next_focus"] is None
+
+
+def test_지난_날짜에_리포트가_없으면_LLM_없이_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == PAST_SUMMARY
+    assert body["next_focus"] is None
+    assert body["stats"]["record_count"] == 3
+    assert llm.calls == []
+    assert db_session.query(AgentFeedback).count() == 0
+
+
+def test_리포트를_만든_뒤_기록이_바뀌었으면_지난_날짜는_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    _report(client, token)
+    calls = len(llm.calls)
+    # 리포트를 만든 뒤 그날 운동 기록 하나가 바뀌었다(예: 일시정지했다가 나중에 완료).
+    record = db_session.query(ExerciseRecord).order_by(ExerciseRecord.id).first()
+    record.modified_at = utc_now() + timedelta(minutes=1)
+    db_session.commit()
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # 저장한 한마디는 바뀌기 전 기록으로 썼으니, 다시 센 숫자와 어긋나지 않게 숫자만 보여 준다.
+    assert body["summary"] == PAST_SUMMARY
+    assert body["next_focus"] is None
+    assert len(llm.calls) == calls
+
+
+def test_그날_대체_문장이었으면_지난_날짜는_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(error=LlmTimeoutError("시간 초과")))
+    assert FALLBACK_TAIL in _report(client, token).json()["summary"]
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # '잠시 후 다시 확인해 주세요'는 다시 만들지 않는 지난 날짜에서 지킬 수 없다.
+    assert body["summary"] == PAST_SUMMARY
+
+
+def test_저장한_다음_집중_스텝이_그날_스텝에_없으면_한마디만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm())
+    db_session.add(
+        AgentFeedback(
+            user_id=db_session.query(User).one().id,
+            exercise_step_records_id=None,
+            feedback_type=FEEDBACK_TYPE_DAILY,
+            today_summary="오늘도 꾸준히 해 주셨어요.\n다음 집중 스텝: 없는 스텝 — 이유",
+            report_date=report_date_of(date.fromisoformat(RECORD_DAY)),
+            created_at=utc_now(),
+        )
+    )
+    db_session.commit()
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert body["next_focus"] is None
+
+
+def test_지난_날짜에_기록이_없으면_이날_문장을_쓴다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+
+    _set_today(monkeypatch, "2026-10-22")
+    body = _report(client, token, VIEW_DAY).json()
+
+    assert body["summary"] == "이날은 운동 기록이 없어요."
+    assert llm.calls == []
+
+
+def test_가짜_기록_모드는_지난_날짜도_새로_만든다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    app.dependency_overrides[get_llm_client] = lambda: llm
+    app.dependency_overrides[get_team_activity_reader] = (
+        lambda: FixtureTeamActivityReader.from_scenario("evaluated")
+    )
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # 가짜 기록은 저장한 리포트가 없어서, 지난 날짜 규칙 없이 그날을 오늘로 보고 만든다.
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert len(llm.calls) == 2
 
 
 def test_로그인하지_않으면_401이다(client: TestClient) -> None:
