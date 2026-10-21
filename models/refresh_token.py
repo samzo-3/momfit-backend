@@ -5,11 +5,11 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from core.clock import utc_now
 from db.base import Base
+from models.timestamp_mixin import CreatedAtMixin
 
 
-class RefreshToken(Base):
+class RefreshToken(CreatedAtMixin, Base):
     """로그인 한 번(family) 안에서 교체(rotation)되는 refresh 토큰."""
 
     __tablename__ = "refresh_tokens"
@@ -23,4 +23,3 @@ class RefreshToken(Base):
     family_id: Mapped[str] = mapped_column(String(36), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

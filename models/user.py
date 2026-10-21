@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Date, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.clock import utc_now
 from db.base import Base
+from models.timestamp_mixin import TimestampMixin
 
 if TYPE_CHECKING:
     from models.auth_identity import AuthIdentity
@@ -20,8 +20,12 @@ STATUS_ACTIVE = "active"
 STATUS_WITHDRAWN = "withdrawn"
 
 
-class User(Base):
-    """사용자 프로필. 로그인 수단은 AuthIdentity가 가진다."""
+class User(TimestampMixin, Base):
+    """사용자 프로필. 로그인 수단은 AuthIdentity가 가진다.
+
+    modified_at은 회원정보를 마지막으로 수정한 시각이다. users 행이 UPDATE될 때마다 갱신된다.
+    (로그인·토큰 갱신처럼 users를 건드리지 않는 동작은 갱신하지 않는다.)
+    """
 
     __tablename__ = "users"
 
@@ -34,12 +38,6 @@ class User(Base):
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     terms_agreed_at: Mapped[datetime | None] = mapped_column(DateTime)
     health_data_agreed_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    # 회원정보를 마지막으로 수정한 시각. users 행이 UPDATE될 때마다 갱신된다.
-    # (로그인·토큰 갱신처럼 users를 건드리지 않는 동작은 갱신하지 않는다.)
-    modified_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utc_now, onupdate=utc_now
-    )
     # active: 이용 중 / withdrawn: 탈퇴 유예 중(로그인할 수 없고, 유예 기간이 지나면 완전히 삭제된다)
     status: Mapped[str] = mapped_column(
         String(20), default=STATUS_ACTIVE, server_default=STATUS_ACTIVE
