@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 import models  # noqa: F401  (create_all이 모든 모델을 알 수 있도록 import)
+from api.agent.daily_report import router as agent_router
 from api.auth import router as auth_router
 from api.health import router as health_router
 from api.kakao_auth import router as kakao_auth_router
@@ -57,3 +58,4 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(kakao_auth_router)
 app.include_router(users_router)
+app.include_router(agent_router)
