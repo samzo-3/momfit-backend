@@ -134,7 +134,7 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     }
     assert body["provider"] == "fake"
     assert body["model"] == "fake-1"
-    assert body["prompt_version"] == "daily-v2"
+    assert body["prompt_version"] == "daily-v3"
     assert body["latency_ms"] is not None
     assert body["stats"]["record_count"] == 3
     assert body["stats"]["completed_count"] == 3
@@ -254,7 +254,7 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
     assert body["next_focus"] is None
     # LLM을 불렀으니 실제로 부른 값은 채운다.
     assert body["provider"] == "fake"
-    assert body["prompt_version"] == "daily-v2"
+    assert body["prompt_version"] == "daily-v3"
     # 대체 문장도 화면에 보여 준 한마디라서 저장한다.
     assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
 
