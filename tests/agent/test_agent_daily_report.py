@@ -1,4 +1,7 @@
-"""오늘의 운동 리포트 API 검사. 가짜 LLM과 fixture 리더를 의존성으로 끼운다."""
+"""오늘의 운동 리포트 API 검사. 가짜 LLM과 팀 테이블 리더를 의존성으로 끼운다.
+
+저장은 실제 기록(DB 모드)일 때만 일어나므로, 시나리오 행을 팀 모델로 넣고 SQL 리더를 쓴다.
+"""
 
 import json
 
@@ -12,9 +15,11 @@ from models.agent.agent_feedback import (
     FEEDBACK_TYPE_STEP,
     AgentFeedback,
 )
+from models.exercise import Exercise
 from models.user import User
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
+    SqlTeamActivityReader,
     get_team_activity_reader,
 )
 from services.agent.llm import (
@@ -24,6 +29,7 @@ from services.agent.llm import (
     Usage,
     get_llm_client,
 )
+from tests.agent.agent_seed import seed_scenario
 from tests.helpers import signup_payload
 
 DAILY_REPORT = "/api/agent/daily-report"
@@ -85,11 +91,12 @@ def _token(client: TestClient) -> str:
     return response.json()["access_token"]
 
 
-def _use(llm: ScriptedLlm, scenario: str = "evaluated") -> None:
+def _use(db: Session, llm: ScriptedLlm, scenario: str = "evaluated") -> None:
+    """가입한 사용자의 시나리오 기록을 팀 모델로 넣고(한 번만) DB 모드 리더와 가짜 LLM을 끼운다."""
+    if db.query(Exercise).count() == 0:
+        seed_scenario(db, db.query(User).one().id, scenario)
     app.dependency_overrides[get_llm_client] = lambda: llm
-    app.dependency_overrides[get_team_activity_reader] = (
-        lambda: FixtureTeamActivityReader.from_scenario(scenario)
-    )
+    app.dependency_overrides[get_team_activity_reader] = lambda: SqlTeamActivityReader(db)
 
 
 def _report(client: TestClient, token: str, day: str | None = RECORD_DAY):
@@ -113,7 +120,7 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm()
-    _use(llm)
+    _use(db_session, llm)
 
     response = _report(client, token)
 
@@ -145,9 +152,11 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     assert "다음 집중 스텝: 오른쪽 스텝" in daily[0].today_summary
 
 
-def test_응답에는_대체_이유를_넣지_않는다(client: TestClient) -> None:
+def test_응답에는_대체_이유를_넣지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
     token = _token(client)
-    _use(ScriptedLlm())
+    _use(db_session, ScriptedLlm())
 
     body = _report(client, token).json()
 
@@ -169,7 +178,7 @@ def test_후보가_없는_날은_다음_집중_스텝이_비고_대체_문장으
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm()
-    _use(llm, scenario="not_evaluated_unscored")
+    _use(db_session, llm, scenario="not_evaluated_unscored")
 
     body = _report(client, token, NO_SCORE_DAY).json()
 
@@ -186,7 +195,7 @@ def test_기록이_없는_날은_LLM을_부르지_않고_저장하지_않는다(
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm()
-    _use(llm)
+    _use(db_session, llm)
 
     body = _report(client, token, EMPTY_DAY).json()
 
@@ -208,7 +217,7 @@ def test_건강정보_동의가_없으면_LLM을_부르지_않고_대체_문장�
     user.health_data_agreed_at = None
     db_session.commit()
     llm = ScriptedLlm()
-    _use(llm)
+    _use(db_session, llm)
 
     body = _report(client, token).json()
 
@@ -237,7 +246,7 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm(daily=daily, error=error)
-    _use(llm)
+    _use(db_session, llm)
 
     body = _report(client, token).json()
 
@@ -250,24 +259,28 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
     assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
 
 
-def test_안전_안내는_모든_응답에_들어간다(client: TestClient) -> None:
+def test_안전_안내는_모든_응답에_들어간다(
+    client: TestClient, db_session: Session
+) -> None:
     token = _token(client)
-    _use(ScriptedLlm())
+    _use(db_session, ScriptedLlm())
     notice = "운동 중 어지러움, 복통, 출혈 같은 증상이 있었다면 운동을 멈추고 담당 의료진과 상의해 주세요."
 
     for day in (RECORD_DAY, EMPTY_DAY):
         body = _report(client, token, day).json()
         assert body["safety_notice"] == notice
 
-    _use(ScriptedLlm(daily="JSON이 아닌 답"))
+    _use(db_session, ScriptedLlm(daily="JSON이 아닌 답"))
     assert _report(client, token).json()["safety_notice"] == notice
 
 
-def test_날짜를_비우면_오늘로_본다(client: TestClient) -> None:
+def test_날짜를_비우면_오늘로_본다(
+    client: TestClient, db_session: Session
+) -> None:
     from core.clock import today_kst
 
     token = _token(client)
-    _use(ScriptedLlm())
+    _use(db_session, ScriptedLlm())
 
     body = _report(client, token, day=None).json()
 
@@ -278,7 +291,7 @@ def test_같은_날_다시_요청하면_새_행이_쌓인다(
     client: TestClient, db_session: Session
 ) -> None:
     token = _token(client)
-    _use(ScriptedLlm())
+    _use(db_session, ScriptedLlm())
 
     _report(client, token)
     _report(client, token)
@@ -288,10 +301,12 @@ def test_같은_날_다시_요청하면_새_행이_쌓인다(
     assert rows[-1].id > rows[0].id
 
 
-def test_두_번째_요청은_STEP_메모를_다시_쓰지_않는다(client: TestClient) -> None:
+def test_두_번째_요청은_STEP_메모를_다시_쓰지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
     token = _token(client)
     llm = ScriptedLlm()
-    _use(llm)
+    _use(db_session, llm)
 
     _report(client, token)
     first_calls = len(llm.calls)
@@ -300,6 +315,28 @@ def test_두_번째_요청은_STEP_메모를_다시_쓰지_않는다(client: Tes
     # 첫 요청은 STEP 묶음 1번 + DAILY 1번, 두 번째 요청은 DAILY 1번만 부른다.
     assert first_calls == 2
     assert len(llm.calls) == 3
+
+
+def test_가짜_기록_모드는_agent_feedback을_읽지도_쓰지도_않는다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    app.dependency_overrides[get_llm_client] = lambda: llm
+    app.dependency_overrides[get_team_activity_reader] = (
+        lambda: FixtureTeamActivityReader.from_scenario("evaluated")
+    )
+
+    first = _report(client, token)
+    second = _report(client, token)
+
+    # 가짜 기록 번호는 DB에 없어서 STEP 메모를 저장하면 MySQL이 FK로 거부한다. 아예 쓰지 않는다.
+    assert first.status_code == second.status_code == 200
+    assert first.json()["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert first.json()["next_focus"]["step_id"] == 12
+    assert db_session.query(AgentFeedback).count() == 0
+    # 저장한 메모가 없으니 요청마다 STEP 묶음 1번 + DAILY 1번을 부른다.
+    assert len(llm.calls) == 4
 
 
 def test_로그인하지_않으면_401이다(client: TestClient) -> None:

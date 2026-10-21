@@ -373,6 +373,11 @@ def _group_daily(
 class TeamActivityReader(Protocol):
     """팀 운동 기록을 읽는 방법. SQL 리더와 fixture 리더가 같은 모양을 따른다."""
 
+    # 팀 DB의 실제 기록이면 True다. 에이전트는 실제 기록일 때만 agent_feedback을 읽고 쓴다.
+    # (가짜 기록으로 만든 메모·리포트가 실제 사용자 계정에 쌓이지 않게 하고, STEP 메모의
+    #  exercise_step_records_id FK가 DB에 없는 가짜 기록 번호를 가리키지 않게 한다)
+    real_records: bool
+
     def list_exercise_records(
         self, user_id: int, day: date
     ) -> list[ExerciseRecordRow]: ...
@@ -398,6 +403,8 @@ class TeamActivityReader(Protocol):
 
 class SqlTeamActivityReader:
     """팀 MySQL 테이블을 SELECT만 한다. 테이블이 없으면 503 AGENT_DATA_UNAVAILABLE."""
+
+    real_records = True
 
     def __init__(self, db: Session) -> None:
         self._db = db
@@ -591,8 +598,10 @@ class FixtureTeamActivityReader:
     """services/agent/fixtures/의 가짜 기록을 읽는다.
 
     fixture 모드에서는 로그인한 사용자와 상관없이 데모 기록을 쓴다. 임신 주차와 동의 같은
-    사용자 정보는 서비스가 실제 users에서 읽는다.
+    사용자 정보는 서비스가 실제 users에서 읽는다. agent_feedback은 읽지도 쓰지도 않는다.
     """
+
+    real_records = False
 
     def __init__(self, catalog: dict[str, Any], scenario: dict[str, Any]) -> None:
         self._exercises = catalog["exercises"]

@@ -127,11 +127,12 @@ def refresh_step_memories(
     memos: list[AgentFeedback],
     llm: LlmClient,
     deadline: float | None = None,
+    save: bool = True,
 ) -> StepMemoryOutcome:
     """오늘 연습한 스텝들의 메모를 최신으로 맞춘다. 이미 최신이면 아무것도 하지 않는다.
 
     연결을 인자로 받는다. 리포트 요청 안에서 돌기 때문에 요청의 연결을 그대로 써도 된다.
-    commit은 부르는 쪽에서 한다.
+    commit은 부르는 쪽에서 한다. save가 False면(가짜 기록) 메모를 만들어 돌려주기만 하고 저장하지 않는다.
     """
     grouped = group_step_attempts(step_records)
     if not grouped:
@@ -159,9 +160,10 @@ def refresh_step_memories(
             llm_steps.append(step_id)
             continue
         memo = _code_memo(step_name, attempts)
-        agent_feedback_repository.save_step_memo(
-            db, user_id, attempts[-1].id, report_date, memo
-        )
+        if save:
+            agent_feedback_repository.save_step_memo(
+                db, user_id, attempts[-1].id, report_date, memo
+            )
         current[step_id] = memo
         written.append(step_id)
 
@@ -221,9 +223,10 @@ def refresh_step_memories(
         checked, memo_failures = output_check.check_step_memos(text, tuple(llm_steps))
         failures.extend(memo_failures)
         for step_id, memo in checked.items():
-            agent_feedback_repository.save_step_memo(
-                db, user_id, grouped[step_id][-1].id, report_date, memo
-            )
+            if save:
+                agent_feedback_repository.save_step_memo(
+                    db, user_id, grouped[step_id][-1].id, report_date, memo
+                )
             current[step_id] = memo
             written.append(step_id)
         if memo_failures:
@@ -274,6 +277,13 @@ def update_step_memory(step_record_id: int) -> None:
 
         with SessionLocal() as db:
             reader = build_team_activity_reader(db)
+            if not reader.real_records:
+                # 가짜 기록 모드에서는 agent_feedback을 쓰지 않는다. 실제 스텝 기록 번호가 들어와도 넘어간다.
+                logger.info(
+                    "가짜 기록 모드라 스텝 메모를 쓰지 않았습니다. step_record_id=%s",
+                    step_record_id,
+                )
+                return
             owner = reader.get_step_record(step_record_id)
             if owner is None:
                 logger.warning(

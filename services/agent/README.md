@@ -50,6 +50,9 @@ background_tasks.add_task(update_step_memory, record.id)
 
 ## 경계
 
+- fixture 모드(가짜 기록)는 `agent_feedback`을 읽지도 쓰지도 않는다. 가짜 기록으로 만든 메모·리포트가
+  실제 사용자 계정에 쌓이지 않게 하고, STEP 메모의 FK가 DB에 없는 가짜 기록 번호를 가리켜 MySQL이
+  거부하는 일을 막는다. 그래서 fixture 모드에서는 요청마다 STEP 메모를 새로 만든다.
 - 팀 테이블은 읽기만 한다. 쓰기는 `agent_feedback` 하나뿐이다. 읽는 팀 테이블은 `exercises`,
   `exercise_steps`, `exercise_criteria_versions`, `exercise_records`, `exercise_step_records`,
   `voice_cues`다.
@@ -86,6 +89,14 @@ uvicorn main:app --reload                 # 서버
 pytest                                    # 전체 테스트
 pytest tests/agent                        # 에이전트 테스트만
 python -m scripts.agent.run_scenarios     # 시나리오 비교표 + 실행 기록
+```
+
+팀 DB는 MySQL이다. 에이전트 테스트는 SQLite에서도 FK 검사를 켜고 돈다(`tests/agent/conftest.py`).
+실제 MySQL로 돌리려면 팀 `tests/conftest.py`의 `TEST_DATABASE_URL`을 쓴다. 이 DB의 테이블은 테스트마다
+지워지므로 비어 있는 테스트 전용 DB를 쓴다.
+
+```bash
+TEST_DATABASE_URL="mysql+pymysql://root:비밀번호@127.0.0.1:3307/momfit_test?charset=utf8mb4" pytest
 ```
 
 `runs/`에는 `run_scenarios` 실행 기록이 쌓인다. 프롬프트나 모델을 바꾼 전후를 비교할 때 쓰고,

@@ -2,13 +2,18 @@
 
 import json
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.orm import Session
 
 from models.agent.agent_feedback import FEEDBACK_TYPE_STEP, AgentFeedback
+from models.exercise import Exercise
+from models.exercise_step import ExerciseStep
+from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
 from repositories.agent.team_activity_reader import (
+    FixtureTeamActivityReader,
     StepRecordOwner,
     StepRecordRow,
     StepRow,
@@ -44,7 +49,9 @@ class FakeLlm:
 
 
 class StubReader:
-    """팀 테이블 대신 메모리 목록을 읽는다."""
+    """팀 테이블 대신 메모리 목록을 읽는다. 실제 기록처럼 다뤄 메모를 저장한다."""
+
+    real_records = True
 
     def __init__(self, step_records: list[StepRecordRow], steps: list[StepRow], user_id: int = 1):
         self.step_records = step_records
@@ -122,8 +129,39 @@ STEPS = [
 def user(db_session: Session) -> User:
     row = User(nickname="맘핏", email="mom@example.com", onboarding_completed=True)
     db_session.add(row)
+    # 메모가 가리킬 스텝 기록(_store)이 기대는 운동과 스텝
+    db_session.add(Exercise(id=1, exercise_name="사이드 스텝", target_reps=10))
+    db_session.flush()
+    db_session.add_all(
+        ExerciseStep(id=step.id, exercise_id=1, step_order=step.step_order, step_name=step.step_name)
+        for step in STEPS
+    )
     db_session.commit()
     return row
+
+
+def _store(db: Session, user: User, attempts: list[StepRecordRow]) -> None:
+    """메모의 exercise_step_records_id FK가 가리킬 스텝 기록을 팀 모델로 넣는다. 이미 있으면 넘어간다.
+
+    이 파일의 검사는 시도를 리더 없이 바로 넘기므로, 넣는 행은 FK를 채우는 용도일 뿐이다.
+    """
+    for attempt in attempts:
+        if db.get(ExerciseStepRecord, attempt.id) is not None:
+            continue
+        db.add(
+            ExerciseStepRecord(
+                id=attempt.id,
+                user_id=user.id,
+                exercise_id=attempt.exercise_id,
+                exercise_step_id=attempt.exercise_step_id,
+                status=attempt.status,
+                step_score=None if attempt.step_score is None else Decimal(str(attempt.step_score)),
+                step_report={},
+                created_at=attempt.created_at,
+                modified_at=attempt.modified_at or attempt.created_at,
+            )
+        )
+    db.flush()
 
 
 def _memos(db: Session) -> list[AgentFeedback]:
@@ -135,10 +173,11 @@ def _memos(db: Session) -> list[AgentFeedback]:
     )
 
 
-def _refresh(db: Session, user: User, attempts, llm, memos=None):
+def _refresh(db: Session, user: User, attempts, llm, memos=None, save=True):
     from repositories.agent import agent_feedback_repository
     from repositories.agent.team_activity_reader import report_date_of
 
+    _store(db, user, attempts)
     return refresh_step_memories(
         db,
         user_id=user.id,
@@ -149,6 +188,7 @@ def _refresh(db: Session, user: User, attempts, llm, memos=None):
         if memos is not None
         else agent_feedback_repository.list_step_memos(db, user.id, report_date_of(DAY)),
         llm=llm,
+        save=save,
     )
 
 
@@ -314,6 +354,22 @@ def test_LLM_입력에_측정_수치와_교정_문장이_들어가지_않는다(
     assert "벌려 주세요" not in sent
 
 
+def test_save가_False면_메모를_돌려주기만_하고_저장하지_않는다(
+    db_session: Session, user: User
+) -> None:
+    attempts = [_attempt(1, 12), _attempt(2, 13, status="NOT_EVALUATED", codes=())]
+    llm = FakeLlm(['[{"exercise_step_id": 12, "memo": "12 메모"}]'])
+
+    outcome = _refresh(db_session, user, attempts, llm, save=False)
+    db_session.commit()
+
+    assert outcome.memos == {
+        12: "12 메모",
+        13: "왼쪽 스텝: 1번 시도 중 0번 통과, 60점, 자세 판정 결과 없음",
+    }
+    assert _memos(db_session) == []
+
+
 def test_LLM_호출이_실패하면_메모를_저장하지_않고_넘어간다(
     db_session: Session, user: User
 ) -> None:
@@ -348,6 +404,8 @@ def test_update_step_memory는_자기_연결을_연다(
     db_session: Session, user: User, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     attempts = [_attempt(1, 12), _attempt(2, 12, score=70.0)]
+    _store(db_session, user, attempts)
+    db_session.commit()
     reader = StubReader(attempts, STEPS, user_id=user.id)
     llm = FakeLlm(['[{"exercise_step_id": 12, "memo": "배경 작업 메모"}]'])
     monkeypatch.setattr("db.session.SessionLocal", _SessionContext(db_session))
@@ -360,6 +418,26 @@ def test_update_step_memory는_자기_연결을_연다(
     assert [row.step_summary for row in rows] == ["배경 작업 메모"]
     assert rows[0].exercise_step_records_id == 2
     assert rows[0].user_id == user.id
+
+
+def test_update_step_memory는_가짜_기록_모드에서_아무것도_쓰지_않는다(
+    db_session: Session, user: User, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    llm = FakeLlm(['[{"exercise_step_id": 12, "memo": "쓰면 안 되는 메모"}]'])
+    monkeypatch.setattr("db.session.SessionLocal", _SessionContext(db_session))
+    monkeypatch.setattr(
+        step_memory,
+        "build_team_activity_reader",
+        lambda db: FixtureTeamActivityReader.from_scenario("evaluated"),
+    )
+    monkeypatch.setattr(step_memory, "build_llm_client", lambda: llm)
+
+    with caplog.at_level("INFO"):
+        update_step_memory(15)
+
+    assert llm.calls == []
+    assert _memos(db_session) == []
+    assert "15" in caplog.text
 
 
 def test_update_step_memory는_예외를_밖으로_던지지_않고_번호를_로그에_남긴다(

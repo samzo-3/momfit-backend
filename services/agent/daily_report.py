@@ -176,8 +176,12 @@ def build_daily_report(
     reader: TeamActivityReader,
     llm: LlmClient,
 ) -> DailyReportResult:
-    """하루 리포트를 만든다. 실패해도 예외를 내지 않고 대체 문장으로 돌려준다."""
+    """하루 리포트를 만든다. 실패해도 예외를 내지 않고 대체 문장으로 돌려준다.
+
+    가짜 기록(reader.real_records가 False)이면 agent_feedback을 읽지도 쓰지도 않는다.
+    """
     deadline = time.monotonic() + config.report_timeout_seconds()
+    save = reader.real_records
     notice = config.safety_notice()
     report_date = report_date_of(day)
 
@@ -243,15 +247,16 @@ def build_daily_report(
             user.id,
             REASON_NO_CONSENT,
         )
-        agent_feedback_repository.save_daily_report(db, user.id, report_date, summary)
-        db.commit()
+        if save:
+            agent_feedback_repository.save_daily_report(db, user.id, report_date, summary)
+            db.commit()
         return DailyReportResult(
             date=day,
             stats=stats,
             safety_notice=notice,
             summary=summary,
             fallback_reason=REASON_NO_CONSENT,
-            saved=True,
+            saved=save,
         )
 
     # 4. STEP 따라잡기: 메모가 낡은 스텝만 다시 쓴다. 이미 최신이면 LLM을 부르지 않는다.
@@ -261,9 +266,14 @@ def build_daily_report(
         day=day,
         step_records=step_records,
         steps=steps,
-        memos=agent_feedback_repository.list_step_memos(db, user.id, report_date),
+        memos=(
+            agent_feedback_repository.list_step_memos(db, user.id, report_date)
+            if save
+            else []
+        ),
         llm=llm,
         deadline=deadline,
+        save=save,
     )
     llm_calls = outcome.llm_calls
     latency_ms = outcome.latency_ms
@@ -341,14 +351,15 @@ def build_daily_report(
         )
 
     # 7. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 DAILY로 저장한다.
-    focus_step_name = step_names.get(next_focus.step_id) if next_focus else None
-    agent_feedback_repository.save_daily_report(
-        db,
-        user.id,
-        report_date,
-        _today_summary_row(summary, next_focus, focus_step_name),
-    )
-    db.commit()
+    if save:
+        focus_step_name = step_names.get(next_focus.step_id) if next_focus else None
+        agent_feedback_repository.save_daily_report(
+            db,
+            user.id,
+            report_date,
+            _today_summary_row(summary, next_focus, focus_step_name),
+        )
+        db.commit()
 
     return DailyReportResult(
         date=day,
@@ -362,7 +373,7 @@ def build_daily_report(
         latency_ms=latency_ms if llm_calls else None,
         fallback_reason=reason,
         llm_calls=llm_calls,
-        saved=True,
+        saved=save,
         input_tokens=input_tokens if llm_calls else None,
         output_tokens=output_tokens if llm_calls else None,
     )

@@ -9,7 +9,6 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from core.clock import utc_now
@@ -18,25 +17,19 @@ from models.agent.agent_feedback import (
     FEEDBACK_TYPE_STEP,
     AgentFeedback,
 )
-from models.exercise import Exercise
-from models.exercise_criteria_version import ExerciseCriteriaVersion
-from models.exercise_record import ExerciseRecord
-from models.exercise_step import ExerciseStep
 from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
-from models.voice_cue import VoiceCue
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
     SqlTeamActivityReader,
 )
-from services.agent import config
 from services.agent.daily_report import DailyReportResult, build_daily_report
 from services.agent.llm import Usage
 from services.agent.report_stats import SetProgress
+from tests.agent.agent_seed import seed_scenario
 
 RECORD_DAY = date(2026, 10, 19)
 MIXED_DAY = date(2026, 10, 20)
-DECIMAL_FIELDS = {"total_score", "step_score", "score_per_set"}
 
 
 class CapturingLlm:
@@ -65,43 +58,6 @@ class CapturingLlm:
         )
         answer = {"summary": "오늘도 꾸준히 해 주셨어요.", "next_focus": focus}
         return json.dumps(answer, ensure_ascii=False), Usage(10, 20)
-
-
-def _load(name: str) -> dict:
-    return json.loads((config.FIXTURES_DIR / name).read_text(encoding="utf-8"))
-
-
-def _values(row: dict, user_id: int | None = None) -> dict:
-    """fixture 한 줄을 팀 모델에 넣을 값으로 바꾼다."""
-    values = {}
-    for key, value in row.items():
-        if key.endswith("_at") and value is not None:
-            value = datetime.fromisoformat(value)
-        elif key in DECIMAL_FIELDS and value is not None:
-            value = Decimal(str(value))
-        values[key] = value
-    if user_id is not None:
-        values["user_id"] = user_id
-    return values
-
-
-def _seed(db: Session, user_id: int, scenario: str) -> None:
-    """fixture 행을 팀 모델로 넣는다. 사용자 번호만 테스트 사용자로 바꾼다."""
-    catalog = _load("catalog.json")
-    rows = _load(f"scenario_{scenario}.json")
-    for model, items in (
-        (Exercise, catalog["exercises"]),
-        (ExerciseCriteriaVersion, catalog["exercise_criteria_versions"]),
-        (ExerciseStep, catalog["exercise_steps"]),
-        (VoiceCue, catalog["voice_cues"]),
-    ):
-        db.add_all(model(**_values(item)) for item in items)
-        db.flush()
-    db.add_all(ExerciseRecord(**_values(item, user_id)) for item in rows["exercise_records"])
-    db.add_all(
-        ExerciseStepRecord(**_values(item, user_id)) for item in rows["exercise_step_records"]
-    )
-    db.commit()
 
 
 @pytest.fixture()
@@ -135,7 +91,7 @@ def _feedback(db: Session, feedback_type: str) -> list[AgentFeedback]:
 
 
 def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User) -> None:
-    _seed(db_session, user.id, "evaluated")
+    seed_scenario(db_session, user.id, "evaluated")
 
     result, payload = _report(db_session, user, RECORD_DAY, SqlTeamActivityReader(db_session))
 
@@ -176,7 +132,7 @@ def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User
 def test_DB_모드는_일시정지_기록과_측정_불가_스텝을_나눠_센다(
     db_session: Session, user: User
 ) -> None:
-    _seed(db_session, user.id, "evaluated")
+    seed_scenario(db_session, user.id, "evaluated")
 
     result, payload = _report(db_session, user, MIXED_DAY, SqlTeamActivityReader(db_session))
 
@@ -208,23 +164,23 @@ def test_DB_모드는_일시정지_기록과_측정_불가_스텝을_나눠_센�
 def test_fixture_모드와_DB_모드는_같은_결과를_낸다(
     db_session: Session, user: User, scenario: str, day: date
 ) -> None:
-    _seed(db_session, user.id, scenario)
+    seed_scenario(db_session, user.id, scenario)
 
+    # fixture 모드는 agent_feedback을 읽지도 쓰지도 않아서, 먼저 돌려도 DB 모드에 끼어들지 않는다.
     from_fixture, fixture_payload = _report(
         db_session, user, day, FixtureTeamActivityReader.from_scenario(scenario)
     )
-    # 앞 실행이 저장한 STEP 메모가 뒤 실행의 따라잡기에 끼어들지 않게 지운다.
-    db_session.query(AgentFeedback).delete()
-    db_session.commit()
+    assert db_session.query(AgentFeedback).count() == 0
     from_db, db_payload = _report(db_session, user, day, SqlTeamActivityReader(db_session))
 
     assert from_db.stats == from_fixture.stats
     assert db_payload == fixture_payload
     assert from_db.next_focus == from_fixture.next_focus
+    assert (from_fixture.saved, from_db.saved) == (False, True)
 
 
 def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: Session, user: User) -> None:
-    _seed(db_session, user.id, "not_evaluated_unscored")
+    seed_scenario(db_session, user.id, "not_evaluated_unscored")
     # 팀 API는 step_report를 보내지 않으면 {}로 저장한다.
     db_session.add(
         ExerciseStepRecord(
@@ -260,7 +216,7 @@ def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: 
 def test_message가_빈_교정_문장은_건너뛴다(
     db_session: Session, user: User, source: str
 ) -> None:
-    _seed(db_session, user.id, "evaluated")
+    seed_scenario(db_session, user.id, "evaluated")
     reader = (
         FixtureTeamActivityReader.from_scenario("evaluated")
         if source == "fixture"
@@ -278,10 +234,8 @@ def test_message가_빈_교정_문장은_건너뛴다(
 def test_스텝_기록을_지우면_그_STEP_메모만_함께_지워진다(
     db_session: Session, user: User
 ) -> None:
-    if db_session.get_bind().dialect.name == "sqlite":
-        # SQLite는 연결마다 켜야 FK를 검사한다. (MySQL은 늘 검사한다)
-        db_session.execute(text("PRAGMA foreign_keys=ON"))
-    _seed(db_session, user.id, "evaluated")
+    # FK 검사는 tests/agent/conftest.py가 SQLite에서도 켜 둔다.
+    seed_scenario(db_session, user.id, "evaluated")
     _report(db_session, user, RECORD_DAY, SqlTeamActivityReader(db_session))
 
     db_session.delete(db_session.get(ExerciseStepRecord, 15))
