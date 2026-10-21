@@ -11,6 +11,9 @@ from db.base import Base
 
 if TYPE_CHECKING:
     from models.auth_identity import AuthIdentity
+    from models.exercise_record import ExerciseRecord
+    from models.exercise_step_record import ExerciseStepRecord
+    from models.user_goal import UserGoal
 
 
 STATUS_ACTIVE = "active"
@@ -46,5 +49,17 @@ class User(Base):
 
     identities: Mapped[list["AuthIdentity"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+
+    exercise_records: Mapped[list["ExerciseRecord"]] = relationship(
+        back_populates="user"
+    )
+
+    exercise_step_records: Mapped[list["ExerciseStepRecord"]] = relationship(
+        back_populates="user"
+    )
+
+    exercise_goals: Mapped[list["UserGoal"]] = relationship(
+        back_populates="user"
     )
 

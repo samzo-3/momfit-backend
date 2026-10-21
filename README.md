@@ -74,15 +74,11 @@ momfit-backend/
 │   │   ├── __init__.py
 │   │   ├── pregnancy.py
 │   │   └── user_service.py
-│   └── pose_coaching/                     
-│       ├── placeholder.py                  
-│       ├── analyzers/
-│       │   └── placeholder.py              
-│       ├── common/
-│       │   └── placeholder.py             
-│       ├── references/
-│       │   └── .gitkeep                    
-│       └── tracking/
+│   └── pose_coaching/                      # 자세 배우기 모드     
+│       ├── __init__.py                 
+│       ├── side_step_open_window/
+│       │   └── placeholder.py                                    
+│       └── common/
 │           └── placeholder.py             
 ├── tests/
 │   ├── pose_coaching/                      
