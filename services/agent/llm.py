@@ -149,15 +149,25 @@ class GeminiLlm:
         if not self._api_key:
             raise LlmError("GEMINI_API_KEY가 없습니다.")
         from google import genai
-        from google.genai import errors
+        from google.genai import errors, types
 
         try:
-            client = genai.Client(api_key=self._api_key)
-            interaction = client.interactions.create(
+            # attempts=1: 한 번만 시도한다. SDK가 503·429를 자동 재시도하면 리포트 전체 제한 시간을
+            # 먹고, 재시도 전에 서버의 Retry-After만큼 잠들기도 한다. 실패는 바로 대체 문장으로
+            # 떨어지는 편이 낫다. (AnthropicLlm의 max_retries=0과 같은 이유)
+            # interactions.create는 쓰지 않는다. Client가 attempts=0을 1로 바꾸고 interactions 쪽은
+            # 그 값을 '재시도 횟수'로 읽어서, 재시도를 끌 수 없다. (google-genai 2.32.0에서 확인)
+            client = genai.Client(
+                api_key=self._api_key,
+                http_options=types.HttpOptions(
+                    timeout=int(timeout * 1000),
+                    retry_options=types.HttpRetryOptions(attempts=1),
+                ),
+            )
+            response = client.models.generate_content(
                 model=self.model,
-                system_instruction=system_prompt,
-                input=user_message,
-                timeout=timeout,
+                contents=user_message,
+                config=types.GenerateContentConfig(system_instruction=system_prompt),
             )
         except errors.ClientError as error:
             if getattr(error, "code", None) == 429:
@@ -172,10 +182,10 @@ class GeminiLlm:
                 raise LlmTimeoutError(str(error)) from error
             raise LlmError(str(error)) from error
 
-        usage = getattr(interaction, "usage", None)
-        return interaction.output_text or "", Usage(
-            input_tokens=getattr(usage, "total_input_tokens", None),
-            output_tokens=getattr(usage, "total_output_tokens", None),
+        usage = response.usage_metadata
+        return response.text or "", Usage(
+            input_tokens=getattr(usage, "prompt_token_count", None),
+            output_tokens=getattr(usage, "candidates_token_count", None),
         )
 
 
