@@ -61,15 +61,25 @@ def list_step_memos(
 
 
 def save_daily_report(
-    db: Session, user_id: int, report_date: datetime, today_summary: str
+    db: Session,
+    user_id: int,
+    report_date: datetime,
+    today_summary: str,
+    *,
+    created_at: datetime,
 ) -> AgentFeedback:
-    """하루 리포트를 새 DAILY 행으로 저장한다. 같은 날 다시 요청하면 새 행이 쌓인다."""
+    """하루 리포트를 새 DAILY 행으로 저장한다. 저장할 때마다 새 행이 쌓이고, 가장 최근 행이 그날 리포트다.
+
+    created_at에는 저장 시각이 아니라 리포트가 숫자를 센 시각을 넣는다. 저장 시각을 쓰면
+    LLM을 기다리는 사이 바뀐 기록을 이미 반영한 것처럼 보게 된다.
+    """
     feedback = AgentFeedback(
         user_id=user_id,
         exercise_step_records_id=None,
         feedback_type=FEEDBACK_TYPE_DAILY,
         today_summary=today_summary,
         report_date=report_date,
+        created_at=created_at,
     )
     db.add(feedback)
     db.flush()

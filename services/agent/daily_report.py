@@ -14,7 +14,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from core.clock import today_kst
+from core.clock import today_kst, utc_now
 from models.user import User
 from repositories.agent import agent_feedback_repository
 from repositories.agent.team_activity_reader import (
@@ -233,7 +233,7 @@ def _past_report(
     if (
         row is not None
         and row.today_summary
-        # 둘 다 팀 규칙대로 naive UTC라 그대로 비교한다.
+        # 리포트 시각은 숫자를 센 시각이다. 둘 다 팀 규칙대로 naive UTC라 그대로 비교한다.
         and row.created_at >= last_touch
         and row.today_summary != _fallback_summary(stats)
     ):
@@ -275,6 +275,9 @@ def build_daily_report(
     report_date = report_date_of(day)
 
     # 1. 오늘 기록 집계
+    #    저장하는 리포트의 시각은 숫자를 세기 직전 시각이다. LLM을 기다리는 사이 바뀐 기록은
+    #    이 시각보다 늦게 바뀌므로, 다음 요청에서 그 리포트가 낡았다고 알 수 있다.
+    read_at = utc_now()
     records = reader.list_exercise_records(user.id, day)
     step_records = reader.list_step_records(user.id, day)
     steps = reader.get_steps(sorted({r.exercise_step_id for r in step_records}))
@@ -333,7 +336,9 @@ def build_daily_report(
             REASON_NO_CONSENT,
         )
         if save:
-            agent_feedback_repository.save_daily_report(db, user.id, report_date, summary)
+            agent_feedback_repository.save_daily_report(
+                db, user.id, report_date, summary, created_at=read_at
+            )
             db.commit()
         return DailyReportResult(
             date=day,
@@ -443,6 +448,7 @@ def build_daily_report(
             user.id,
             report_date,
             _today_summary_row(summary, next_focus, focus_step_name),
+            created_at=read_at,
         )
         db.commit()
 

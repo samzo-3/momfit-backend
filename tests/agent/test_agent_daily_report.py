@@ -4,7 +4,7 @@
 """
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -53,6 +53,11 @@ def _set_today(monkeypatch: pytest.MonkeyPatch, day: str) -> None:
     monkeypatch.setattr(
         daily_report_service, "today_kst", lambda: date.fromisoformat(day)
     )
+
+
+def _set_read_at(monkeypatch: pytest.MonkeyPatch, moment: datetime) -> None:
+    """리포트가 숫자를 세는 시각을 고정한다. (naive UTC)"""
+    monkeypatch.setattr(daily_report_service, "utc_now", lambda: moment)
 
 
 @pytest.fixture(autouse=True)
@@ -515,6 +520,21 @@ def test_가짜_기록_모드는_지난_날짜도_새로_만든다(
     # 가짜 기록은 저장한 리포트가 없어서, 지난 날짜 규칙 없이 그날을 오늘로 보고 만든다.
     assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
     assert len(llm.calls) == 2
+
+
+def test_리포트_행에는_저장_시각이_아니라_숫자를_센_시각을_남긴다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm())
+    # 10월 19일 기록은 03:12(UTC)에 마지막으로 바뀌었다. 그 뒤인 05:00에 숫자를 셌다고 본다.
+    read_at = datetime(2026, 10, 19, 5, 0, 0)
+    _set_read_at(monkeypatch, read_at)
+
+    _report(client, token)
+
+    # LLM을 기다리는 동안 기록이 바뀌면 그 시각은 read_at보다 늦다. 저장 시각을 남기면 놓친다.
+    assert _rows(db_session, FEEDBACK_TYPE_DAILY)[0].created_at == read_at
 
 
 def test_로그인하지_않으면_401이다(client: TestClient) -> None:
