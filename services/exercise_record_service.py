@@ -1,11 +1,13 @@
 """운동 기록 생성, 일시 정지, 재개, 완료 서비스."""
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core.clock import utc_now
+from core.clock import KST, utc_now
+from core.errors import AppError
 from models.exercise import Exercise
 from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_record import ExerciseRecord
@@ -65,6 +67,42 @@ def create_record(db: Session, user_id: int, exercise_id: int):
     )
     db.add(record)
     return _save(db, record)
+
+
+# 한 번에 조회할 수 있는 최대 기간(일). 월 단위 캘린더와 주간 카드가 쓴다.
+MAX_LIST_DAYS = 62
+
+
+def _kst_day_start_as_utc(day: date) -> datetime:
+    """KST 하루의 시작 시각을 DB에 저장된 naive UTC로 바꾼다."""
+    start = datetime.combine(day, time.min, tzinfo=KST)
+    return start.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def list_records(db: Session, user_id: int, start: date, end: date):
+    """KST 기준 start~end(양 끝 포함) 날짜에 시작한 내 운동 기록을 시작 시각 순으로 돌려준다."""
+    if end < start:
+        raise AppError(422, "INVALID_DATE_RANGE", "시작일이 종료일보다 늦습니다.")
+    if (end - start).days + 1 > MAX_LIST_DAYS:
+        raise AppError(
+            422,
+            "DATE_RANGE_TOO_LONG",
+            f"한 번에 {MAX_LIST_DAYS}일까지만 조회할 수 있습니다.",
+        )
+    return db.scalars(
+        select(ExerciseRecord)
+        .where(
+            ExerciseRecord.user_id == user_id,
+            ExerciseRecord.started_at >= _kst_day_start_as_utc(start),
+            ExerciseRecord.started_at < _kst_day_start_as_utc(end + timedelta(days=1)),
+        )
+        .order_by(ExerciseRecord.started_at, ExerciseRecord.id)
+    ).all()
+
+
+def kst_date(moment: datetime) -> date:
+    """DB의 naive UTC 시각이 한국 시간으로 어느 날짜인지 돌려준다."""
+    return moment.replace(tzinfo=timezone.utc).astimezone(KST).date()
 
 
 def get_record(db: Session, user_id: int, record_id: int):
