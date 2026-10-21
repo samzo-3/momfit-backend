@@ -1,6 +1,10 @@
 """MomFit FastAPI 애플리케이션 진입점."""
 
 import asyncio
+from api.sidekick_study import router as sidekick_study_router
+from api.voice_cues import router as voice_cues_router
+from api.exercise_step_records import router as exercise_step_records_router
+from api.exercise_records import router as exercise_records_router
 import contextlib
 import logging
 from collections.abc import AsyncIterator
@@ -57,3 +61,8 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(kakao_auth_router)
 app.include_router(users_router)
+
+app.include_router(voice_cues_router)
+app.include_router(exercise_step_records_router)
+app.include_router(exercise_records_router)
+app.include_router(sidekick_study_router)
