@@ -1,13 +1,12 @@
 """사용자의 로그인 수단(로컬, 카카오 등) 모델."""
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.clock import utc_now
 from db.base import Base
+from models.timestamp_mixin import CreatedAtMixin
 
 if TYPE_CHECKING:
     from models.user import User
@@ -16,7 +15,7 @@ LOCAL_PROVIDER = "local"
 KAKAO_PROVIDER = "kakao"
 
 
-class AuthIdentity(Base):
+class AuthIdentity(CreatedAtMixin, Base):
     """provider별 로그인 수단. 로컬은 login_id와 password_hash를 가진다."""
 
     __tablename__ = "auth_identities"
@@ -31,6 +30,5 @@ class AuthIdentity(Base):
     provider_user_id: Mapped[str] = mapped_column(String(100))
     login_id: Mapped[str | None] = mapped_column(String(20), unique=True)
     password_hash: Mapped[str | None] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="identities")

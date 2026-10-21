@@ -1,0 +1,13 @@
+{
+  "note": "CV 팀 'JSON 스키마 명세서' 11.4절의 피드백 이벤트 코드와 설명이다. 설명은 '무엇이 부족했나'(상태 설명)이며, '어떻게 고치나'(교정 방법)는 넣지 않는다. 교정 방법은 팀이 검토한 voice_cues.message에서만 가져온다.",
+  "source": "CV 팀 JSON 스키마 명세서 11.4 (2026-10-20 수정본, 설계 예시 단계). 목록이 확정되면 교체한다.",
+  "codes": {
+    "RIGHT_ARM_TOO_LOW": "오른팔 높이 부족",
+    "LEFT_ARM_TOO_LOW": "왼팔 높이 부족",
+    "ARMS_NOT_OPEN_ENOUGH": "양팔 벌림 부족",
+    "RIGHT_STEP_TOO_SHORT": "오른쪽 스텝 이동량 부족",
+    "LEFT_STEP_TOO_SHORT": "왼쪽 스텝 이동량 부족",
+    "TRACKING_UNAVAILABLE": "관절 인식 불가"
+  },
+  "tracking_unavailable_code": "TRACKING_UNAVAILABLE"
+}
