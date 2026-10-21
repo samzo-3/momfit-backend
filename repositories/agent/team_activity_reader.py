@@ -1,7 +1,7 @@
 """팀 운동 기록 테이블 읽기 전용 계층.
 
-운동 기록 테이블은 팀 최종 ERD에만 있고 develop에는 아직 모델·API·데이터가 없다.
-그래서 읽는 쪽을 갈아끼울 수 있게 Protocol로 두고, SQL 리더와 fixture 리더를 함께 둔다.
+팀 테이블 모양은 develop #9의 팀 모델을 따른다. 실데이터가 없는 개발 환경에서도 돌릴 수 있게
+읽는 쪽을 Protocol로 두고, SQL 리더와 fixture 리더를 함께 둔다. 두 리더는 같은 결과를 내야 한다.
 
 - 팀 테이블은 읽기만 한다. 쓰기는 agent_feedback 하나뿐이다. (agent_feedback_repository)
 - 팀 모델 클래스는 import하지 않는다. SQLAlchemy text()로 SELECT만 한다.
@@ -83,6 +83,17 @@ class ExerciseRow:
     id: int
     exercise_name: str
     target_reps: int | None
+
+
+@dataclass(frozen=True)
+class CriteriaVersionRow:
+    """exercise_criteria_versions 한 줄. 일반 운동 점수를 세트 수로 되돌릴 때 쓴다."""
+
+    id: int
+    exercise_id: int
+    version: str
+    target_sets: int
+    score_per_set: float
 
 
 @dataclass(frozen=True)
@@ -213,6 +224,8 @@ def _step_report_fields(raw: Any) -> dict[str, Any]:
 
     measured_metrics와 metric_results는 읽지 않는다. criteria_version은 지금 CV 명세의
     사용자 JSON에 없어서 보통 None이다.
+    없거나({}·None) 깨진 step_report는 판정 없음으로 본다. 팀 API는 step_report를 비우면
+    {}로 저장한다. (develop #9 기준: schemas/exercise_step_record.py)
     """
     if raw is None:
         report: Any = {}
@@ -223,8 +236,14 @@ def _step_report_fields(raw: Any) -> dict[str, Any]:
             report = {}
     else:
         report = raw
-    if not isinstance(report, dict):
-        report = {}
+    if not isinstance(report, dict) or not report:
+        return {
+            "evaluation_status": None,
+            "feedback_codes": (),
+            "tracking_status": None,
+            "measurement_profile_version": None,
+            "criteria_version": None,
+        }
 
     evaluation = report.get("evaluation_result") or {}
     tracking = report.get("tracking_info") or {}
@@ -269,20 +288,35 @@ def _build_step_record(row: dict[str, Any]) -> StepRecordRow:
     )
 
 
+def _build_criteria_version(row: dict[str, Any]) -> CriteriaVersionRow:
+    return CriteriaVersionRow(
+        id=int(row["id"]),
+        exercise_id=int(row["exercise_id"]),
+        version=str(row["version"]),
+        target_sets=int(row["target_sets"]),
+        score_per_set=float(row["score_per_set"]),
+    )
+
+
 def _pick_cues(
     rows: list[dict[str, Any]], exercise_step_id: int, exercise_id: int
 ) -> dict[str, CorrectionCue]:
-    """event_code별로 하나만 고른다. 그 스텝 전용 → 그 운동 전용 → 모드 공통 순이다."""
+    """event_code별로 하나만 고른다. 그 스텝 전용 → 그 운동 전용 → 모드 공통 순이다.
+
+    message가 비어 있는 안내는 교정 문장으로 쓸 수 없어 건너뛴다. 그러면 다음 순위 안내가 쓰인다.
+    """
 
     def rank(row: dict[str, Any]) -> int:
         if row.get("exercise_step_id") == exercise_step_id:
             return 0
-        if row.get("exercises_id") == exercise_id and row.get("exercise_step_id") is None:
+        if row.get("exercise_id") == exercise_id and row.get("exercise_step_id") is None:
             return 1
         return 2
 
     chosen: dict[str, tuple[int, CorrectionCue]] = {}
     for row in rows:
+        if not (row.get("message") or "").strip():
+            continue
         code = str(row["event_code"])
         candidate = (rank(row), CorrectionCue(event_code=code, message=row["message"]))
         if code not in chosen or candidate[0] < chosen[code][0]:
@@ -351,6 +385,8 @@ class TeamActivityReader(Protocol):
 
     def get_exercises(self, ids: list[int]) -> list[ExerciseRow]: ...
 
+    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]: ...
+
     def get_correction_cues(
         self, event_codes: list[str], exercise_step_id: int, exercise_id: int
     ) -> dict[str, CorrectionCue]: ...
@@ -375,7 +411,7 @@ class SqlTeamActivityReader:
             result = self._db.execute(statement, params)
             return [dict(row) for row in result.mappings()]
         except SQLAlchemyError as error:
-            # 운동 기록 테이블은 아직 develop에 없다. 에이전트만 503으로 막고 팀 서버는 살려 둔다.
+            # 팀 테이블이 없거나 모양이 다르면 에이전트만 503으로 막고 팀 서버는 살려 둔다.
             self._db.rollback()
             raise AppError(
                 503,
@@ -477,29 +513,43 @@ class SqlTeamActivityReader:
             for row in rows
         ]
 
+    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]:
+        if not ids:
+            return []
+        rows = self._rows(
+            """
+            SELECT id, exercise_id, version, target_sets, score_per_set
+              FROM exercise_criteria_versions
+             WHERE id IN :ids
+             ORDER BY id
+            """,
+            {"ids": list(ids)},
+        )
+        return [_build_criteria_version(row) for row in rows]
+
     def get_correction_cues(
         self, event_codes: list[str], exercise_step_id: int, exercise_id: int
     ) -> dict[str, CorrectionCue]:
         if not event_codes:
             return {}
-        # voice_cues는 팀 최종 ERD에서 exercises_id(복수형)를 쓴다. exercise_records만 exercise_id로 바뀌었다.
+        # 팀의 STUDY 조회 범위와 같다: 전체 공통 + 운동별 공통 + 스텝별 안내.
+        # (develop #9 기준: repositories/voice_cue_repository.py의 list_active_by_scope)
         rows = self._rows(
             """
-            SELECT event_code, message, exercise_step_id, exercises_id
+            SELECT event_code, message, exercise_step_id, exercise_id
               FROM voice_cues
              WHERE is_active = :is_active
+               AND category = :category
                AND event_code IN :codes
-               AND (exercise_step_id = :step_id
-                    OR (exercises_id = :exercise_id AND exercise_step_id IS NULL)
-                    OR (category = :category
-                        AND exercise_step_id IS NULL AND exercises_id IS NULL))
+               AND (exercise_id = :exercise_id OR exercise_id IS NULL)
+               AND (exercise_step_id = :step_id OR exercise_step_id IS NULL)
             """,
             {
                 "is_active": True,
+                "category": config.VOICE_CUE_CATEGORY_STUDY,
                 "codes": list(event_codes),
                 "step_id": exercise_step_id,
                 "exercise_id": exercise_id,
-                "category": config.VOICE_CUE_CATEGORY_LEARN,
             },
         )
         return _pick_cues(rows, exercise_step_id, exercise_id)
@@ -548,6 +598,7 @@ class FixtureTeamActivityReader:
         self._exercises = catalog["exercises"]
         self._steps = catalog["exercise_steps"]
         self._cues = catalog["voice_cues"]
+        self._criteria = catalog["exercise_criteria_versions"]
         self._records = scenario.get("exercise_records", [])
         self._step_records = scenario.get("exercise_step_records", [])
 
@@ -617,6 +668,14 @@ class FixtureTeamActivityReader:
             if int(row["id"]) in wanted
         ]
 
+    def get_criteria_versions(self, ids: list[int]) -> list[CriteriaVersionRow]:
+        wanted = set(ids)
+        return [
+            _build_criteria_version(row)
+            for row in sorted(self._criteria, key=lambda item: int(item["id"]))
+            if int(row["id"]) in wanted
+        ]
+
     def get_correction_cues(
         self, event_codes: list[str], exercise_step_id: int, exercise_id: int
     ) -> dict[str, CorrectionCue]:
@@ -625,19 +684,10 @@ class FixtureTeamActivityReader:
             row
             for row in self._cues
             if row.get("is_active")
+            and row.get("category") == config.VOICE_CUE_CATEGORY_STUDY
             and row.get("event_code") in wanted
-            and (
-                row.get("exercise_step_id") == exercise_step_id
-                or (
-                    row.get("exercises_id") == exercise_id
-                    and row.get("exercise_step_id") is None
-                )
-                or (
-                    row.get("category") == config.VOICE_CUE_CATEGORY_LEARN
-                    and row.get("exercise_step_id") is None
-                    and row.get("exercises_id") is None
-                )
-            )
+            and row.get("exercise_id") in (exercise_id, None)
+            and row.get("exercise_step_id") in (exercise_step_id, None)
         ]
         return _pick_cues(rows, exercise_step_id, exercise_id)
 

@@ -11,6 +11,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from core.clock import utc_now
 from db.base import Base
 
+# FK가 가리키는 팀 테이블이 create_all에 늘 함께 잡히도록 팀 모델을 불러온다.
+# (scripts/agent/run_scenarios.py처럼 main.py를 거치지 않고 models만 import하는 곳이 있다)
+from models.exercise import Exercise  # noqa: F401
+from models.exercise_step import ExerciseStep  # noqa: F401
+from models.exercise_step_record import ExerciseStepRecord  # noqa: F401
+
 FEEDBACK_TYPE_DAILY = "DAILY"
 FEEDBACK_TYPE_STEP = "STEP"
 
@@ -34,11 +40,10 @@ class AgentFeedback(Base):
     # STEP 행에는 그날 그 스텝의 '마지막 시도' 기록 번호를 넣는다. 메모가 어느 시도까지
     # 반영했는지 알려 주는 표시다. DAILY 행은 특정 스텝 기록이 없어서 비어 있다.
     # (팀 최종 ERD는 NOT NULL이라 NULL 허용을 팀에 확인 중이다.)
-    # TODO: 팀의 exercise_step_records 모델이 develop에 생기면
-    #       ForeignKey("exercise_step_records.id", ondelete="CASCADE")로 연결한다.
-    #       (팀이 스텝 기록을 지울 때 이 테이블 때문에 막히지 않게 CASCADE)
-    #       지금 FK를 걸면 create_all이 없는 테이블을 참조해 서버 시작이 실패한다.
-    exercise_step_records_id: Mapped[int | None] = mapped_column(BigInteger)
+    # 팀이 스텝 기록을 지울 때 이 테이블 때문에 막히지 않게 CASCADE로 함께 지운다.
+    exercise_step_records_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("exercise_step_records.id", ondelete="CASCADE")
+    )
     feedback_type: Mapped[str] = mapped_column(String(20), index=True)
     today_summary: Mapped[str | None] = mapped_column(Text)
     step_summary: Mapped[str | None] = mapped_column(Text)

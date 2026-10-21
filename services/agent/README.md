@@ -16,7 +16,7 @@
 | `models/agent/` | `agent_feedback.py` | `agent_feedback` 테이블 (에이전트의 유일한 쓰기 대상) |
 | `repositories/agent/` | `agent_feedback_repository.py` | STEP 메모·DAILY 저장과 조회 |
 | `repositories/agent/` | `team_activity_reader.py` | 팀 운동 기록 읽기 전용 (SQL / fixture) |
-| `services/agent/` | `config.py` | `AGENT_*` 환경변수, 팀 확인 대기 상수, 프롬프트·규칙 로더 |
+| `services/agent/` | `config.py` | `AGENT_*` 환경변수, 팀 코드에서 가져온 상수(develop #9 기준), 프롬프트·규칙 로더 |
 | `services/agent/` | `report_stats.py` | 집계·후보 고르기·`is_comparable` (순수 함수) |
 | `services/agent/` | `step_memory.py` | STEP 기억 쓰기 (`update_step_memory`, 따라잡기) |
 | `services/agent/` | `daily_report.py` | DAILY 기억 꺼내기 (처리 순서 8단계) |
@@ -28,6 +28,9 @@
 
 팀 파일에서 바뀐 것은 몇 줄뿐이다: `main.py`(라우터 등록 2줄), `models/__init__.py`(모델 import),
 `requirements.txt`(`google-genai`, `anthropic`), `.env.example`·`compose.yaml`(`AGENT_*` 환경변수).
+`agent_feedback.exercise_step_records_id`는 팀의 `exercise_step_records`를 FK로 가리키므로,
+`models/agent/agent_feedback.py`가 팀 모델 3개(`exercise`, `exercise_step`, `exercise_step_record`)를
+import한다. `main.py`를 거치지 않는 `run_scenarios.py`에서도 `create_all`이 실패하지 않게 하기 위해서다.
 
 ## 두 단계
 
@@ -47,7 +50,14 @@ background_tasks.add_task(update_step_memory, record.id)
 
 ## 경계
 
-- 팀 테이블은 읽기만 한다. 쓰기는 `agent_feedback` 하나뿐이다.
+- 팀 테이블은 읽기만 한다. 쓰기는 `agent_feedback` 하나뿐이다. 읽는 팀 테이블은 `exercises`,
+  `exercise_steps`, `exercise_criteria_versions`, `exercise_records`, `exercise_step_records`,
+  `voice_cues`다.
+- 일반 운동 점수(`exercise_records.total_score`)는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다.
+  리포트는 `exercise_criteria_versions`로 '완료 세트 / 목표 세트'를 되돌려 보여 주고, LLM에는
+  일반 운동 점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
+- 스텝 통과 횟수는 `exercise_step_records.status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
+  부를지는 지금처럼 `step_report`의 CV 판정과 피드백 코드로 정한다.
 - 숫자와 판정은 코드가, 문장은 LLM이 쓴다. 무엇을 기억할지와 다음 집중 스텝 후보도 코드가 정한다.
 - 원인은 CV가 감지한 피드백 코드만 말한다. 코드가 없으면 원인을 말하지 않는다.
 - 건강·증상·감정은 기억하지도 말하지도 않는다. (`rules/health_terms.json`)
@@ -135,16 +145,15 @@ ANTHROPIC_API_KEY=...
 | 건강 정보는 기억하지 않음 | 임산부 서비스라 민감정보다. 기억할 이유가 없다 |
 | 메모는 하루·스텝 하나로 제한 | 길어질수록 리포트에 넣는 맥락이 흔들린다 |
 
-## 팀 확인 대기
+## 팀 코드에서 가져온 값과 팀 확인 대기
 
-`config.py` 위쪽 블록에 모아 두었다. 팀 답이 오면 그 블록만 고친다.
+컬럼 이름, `status`·`category` 값, 점수 범위는 develop #9의 팀 모델·스키마에 맞췄다. `config.py`
+위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
-- `step_report` vs `step_report_json` 컬럼 이름 (CV 명세와 ERD가 다름)
-- `exercise_records.status` / `exercise_step_records.status`에 저장되는 값 (한글인지 영문 코드인지)
-- `voice_cues.category`에 저장되는 값
-- 점수 범위 (0~100 가정)
-- `agent_feedback.exercise_step_records_id`의 NULL 허용 (DAILY 행은 비어야 한다)
+아직 팀 확인을 기다리는 것:
+
+- `agent_feedback.exercise_step_records_id`의 NULL 허용 (DAILY 행은 비어야 한다. 팀 최종 ERD는 NOT NULL)
 - 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 CV 명세의 예시 6개)
 
-읽지 않는 컬럼: `exercise_records.is_completed`(의미가 '이 기록을 끝까지 했다'인지 '이 운동을
-수료했다'인지 알 수 없어 거짓 칭찬이 될 수 있다), `user_goal`(의미 미확정).
+읽지 않는 컬럼: `exercise_records.is_completed`(develop #9에서는 `status`가 `COMPLETED`일 때만 참이라
+`status`와 같은 뜻이다. 완료 수는 `status` 하나로만 센다), `user_goal`(의미 미확정).

@@ -127,11 +127,17 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     }
     assert body["provider"] == "fake"
     assert body["model"] == "fake-1"
-    assert body["prompt_version"] == "daily-v1"
+    assert body["prompt_version"] == "daily-v2"
     assert body["latency_ms"] is not None
     assert body["stats"]["record_count"] == 3
     assert body["stats"]["completed_count"] == 3
     assert body["stats"]["step_attempt_count"] == 7
+    assert body["stats"]["exercises"][0]["sets"] == [
+        {"completed_sets": 6, "target_sets": 10},
+        {"completed_sets": 7, "target_sets": 10},
+        {"completed_sets": 8, "target_sets": 10},
+    ]
+    assert [step["pass_count"] for step in body["stats"]["steps"]] == [2, 1]
     # STEP 메모와 DAILY가 함께 저장된다.
     assert len(_rows(db_session, FEEDBACK_TYPE_STEP)) == 2
     daily = _rows(db_session, FEEDBACK_TYPE_DAILY)
@@ -239,7 +245,7 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
     assert body["next_focus"] is None
     # LLM을 불렀으니 실제로 부른 값은 채운다.
     assert body["provider"] == "fake"
-    assert body["prompt_version"] == "daily-v1"
+    assert body["prompt_version"] == "daily-v2"
     # 대체 문장도 화면에 보여 준 한마디라서 저장한다.
     assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
 
@@ -306,11 +312,13 @@ def test_로그인하지_않으면_401이다(client: TestClient) -> None:
 def test_운동_기록_테이블이_없으면_에이전트_API만_503이다(
     client: TestClient, db_session: Session
 ) -> None:
+    from models.exercise_record import ExerciseRecord
     from repositories.agent.team_activity_reader import SqlTeamActivityReader
 
     token = _token(client)
+    # 팀 모델이 생겨 create_all이 테이블을 만든다. 테이블이 없는 DB를 이 테스트 안에서 만든다.
+    ExerciseRecord.__table__.drop(db_session.get_bind())
     app.dependency_overrides[get_llm_client] = lambda: ScriptedLlm()
-    # 팀의 운동 기록 테이블은 아직 develop에 없다. 그 상태를 그대로 흉내 낸다.
     app.dependency_overrides[get_team_activity_reader] = lambda: SqlTeamActivityReader(
         db_session
     )

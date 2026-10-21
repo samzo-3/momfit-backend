@@ -1,5 +1,5 @@
 {
-  "note": "팀 최종 ERD 모양의 가짜 행. 세 시나리오가 함께 쓴다. voice_cues는 스텝 전용 → 운동 전용 → 모드 공통 우선순위를 확인할 수 있게 겹쳐 두었다.",
+  "note": "develop #9 팀 모델 모양의 가짜 행. 세 시나리오가 함께 쓰고, DB 모드 테스트는 이 행을 팀 모델로 그대로 넣어 fixture 모드와 결과를 맞춘다. voice_cues는 스텝 전용 → 운동 전용 → 공통 우선순위, message가 빈 안내 건너뛰기, STUDY가 아닌 안내 제외를 확인할 수 있게 겹쳐 두었다.",
   "exercises": [
     {
       "id": 1,
@@ -7,6 +7,15 @@
       "target_reps": 10,
       "video_url": "/media/videos/exercises/side-step-open-window/guide-v1.mp4",
       "description": "옆으로 스텝을 밟으며 양팔을 벌리는 운동입니다."
+    }
+  ],
+  "exercise_criteria_versions": [
+    {
+      "id": 1,
+      "exercise_id": 1,
+      "version": "1.0.1",
+      "target_sets": 10,
+      "score_per_set": 10.0
     }
   ],
   "exercise_steps": [
@@ -38,9 +47,9 @@
   "voice_cues": [
     {
       "id": 101,
-      "exercises_id": 1,
+      "exercise_id": 1,
       "exercise_step_id": 12,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "ARMS_NOT_OPEN_ENOUGH",
       "audio_url": "/audio/arms_not_open_enough-101.mp3",
       "message": "팔을 어깨 높이까지 활짝 벌려 주세요.",
@@ -50,9 +59,9 @@
     },
     {
       "id": 102,
-      "exercises_id": 1,
+      "exercise_id": 1,
       "exercise_step_id": null,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "ARMS_NOT_OPEN_ENOUGH",
       "audio_url": "/audio/arms_not_open_enough-102.mp3",
       "message": "양팔을 조금 더 벌려 주세요.",
@@ -62,9 +71,9 @@
     },
     {
       "id": 103,
-      "exercises_id": 1,
+      "exercise_id": 1,
       "exercise_step_id": null,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "RIGHT_ARM_TOO_LOW",
       "audio_url": "/audio/right_arm_too_low-103.mp3",
       "message": "오른팔을 조금 더 올려 주세요.",
@@ -74,9 +83,9 @@
     },
     {
       "id": 104,
-      "exercises_id": null,
+      "exercise_id": null,
       "exercise_step_id": null,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "RIGHT_STEP_TOO_SHORT",
       "audio_url": "/audio/right_step_too_short-104.mp3",
       "message": "오른발을 한 걸음 더 옆으로 내밀어 주세요.",
@@ -86,9 +95,9 @@
     },
     {
       "id": 105,
-      "exercises_id": null,
+      "exercise_id": null,
       "exercise_step_id": null,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "LEFT_STEP_TOO_SHORT",
       "audio_url": "/audio/left_step_too_short-105.mp3",
       "message": "왼발을 한 걸음 더 옆으로 내밀어 주세요.",
@@ -98,9 +107,9 @@
     },
     {
       "id": 106,
-      "exercises_id": null,
+      "exercise_id": null,
       "exercise_step_id": null,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "TRACKING_UNAVAILABLE",
       "audio_url": "/audio/tracking_unavailable-106.mp3",
       "message": "카메라에서 몸 전체가 보이도록 뒤로 조금 물러나 주세요.",
@@ -110,13 +119,37 @@
     },
     {
       "id": 107,
-      "exercises_id": 1,
+      "exercise_id": 1,
       "exercise_step_id": 12,
-      "category": "자세 배우기 모드",
+      "category": "STUDY",
       "event_code": "LEFT_ARM_TOO_LOW",
       "audio_url": "/audio/left_arm_too_low-107.mp3",
       "message": "(꺼 둔 안내) 왼팔을 올려 주세요.",
       "is_active": false,
+      "created_at": "2026-10-18T00:00:00",
+      "modified_at": "2026-10-18T00:00:00"
+    },
+    {
+      "id": 108,
+      "exercise_id": 1,
+      "exercise_step_id": 12,
+      "category": "STUDY",
+      "event_code": "RIGHT_ARM_TOO_LOW",
+      "audio_url": "/audio/right_arm_too_low-108.mp3",
+      "message": null,
+      "is_active": true,
+      "created_at": "2026-10-18T00:00:00",
+      "modified_at": "2026-10-18T00:00:00"
+    },
+    {
+      "id": 109,
+      "exercise_id": 1,
+      "exercise_step_id": null,
+      "category": "EXERCISE",
+      "event_code": "LEFT_STEP_TOO_SHORT",
+      "audio_url": "/audio/left_step_too_short-109.mp3",
+      "message": "(일반 운동 안내) 왼발을 더 내밀어 주세요.",
+      "is_active": true,
       "created_at": "2026-10-18T00:00:00",
       "modified_at": "2026-10-18T00:00:00"
     }

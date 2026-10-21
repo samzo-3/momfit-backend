@@ -77,16 +77,21 @@ def _needs_refresh(memo: AgentFeedback | None, attempts: list[StepRecordRow]) ->
 
 
 def _code_memo(step_name: str, attempts: list[StepRecordRow]) -> str:
-    """판정 결과가 하나도 없을 때 코드가 쓰는 메모. LLM을 부르지 않는다."""
+    """판정 결과가 하나도 없을 때 코드가 쓰는 메모. LLM을 부르지 않는다.
+
+    '통과'는 스텝 기록 status(PASS, 80점 이상)를 센 것이고, '자세 판정 결과 없음'은 step_report에
+    CV 판정과 피드백 코드가 없다는 뜻이다. 둘은 출처가 달라 함께 적힐 수 있다.
+    """
     scores = [a.step_score for a in attempts if a.step_score is not None]
-    parts = [f"{len(attempts)}번 시도"]
+    passed = sum(1 for a in attempts if a.status == config.STEP_STATUS_PASS)
+    parts = [f"{len(attempts)}번 시도 중 {passed}번 통과"]
     if len(scores) >= 2:
         parts.append(f"{scores[0]:g}점에서 {scores[-1]:g}점")
     elif scores:
         parts.append(f"{scores[0]:g}점")
     else:
         parts.append("점수 없음")
-    parts.append("판정 결과 없음")
+    parts.append("자세 판정 결과 없음")
     return f"{step_name}: " + ", ".join(parts)
 
 

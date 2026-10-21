@@ -15,8 +15,17 @@ class DailyReportRequest(BaseModel):
     date: datetime.date | None = None
 
 
+class SetProgressResponse(BaseModel):
+    """일반 운동 기록 하나의 완료 세트 / 목표 세트. 점수로 되돌릴 수 없으면 null이다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    completed_sets: int | None
+    target_sets: int | None
+
+
 class ExerciseSummaryResponse(BaseModel):
-    """일반 운동 하나의 오늘 요약."""
+    """일반 운동 하나의 오늘 요약. 점수는 자세 점수가 아니라 완료 세트 × 세트당 점수다."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +36,8 @@ class ExerciseSummaryResponse(BaseModel):
     best_score: float | None
     first_score: float | None
     last_score: float | None
+    # 기록 순서대로 하나씩
+    sets: list[SetProgressResponse]
 
 
 class StepSummaryResponse(BaseModel):
@@ -41,6 +52,8 @@ class StepSummaryResponse(BaseModel):
     last_score: float | None
     evaluation_counts: dict[str, int]
     feedback_code_counts: dict[str, int]
+    # 스텝 기록 status가 PASS(80점 이상)인 시도 수
+    pass_count: int
 
 
 class StatsResponse(BaseModel):

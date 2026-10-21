@@ -12,6 +12,7 @@ from repositories.agent.team_activity_reader import (
     EVALUATION_STATUS_NOT_EVALUATED,
     EVALUATION_STATUSES,
     CorrectionCue,
+    CriteriaVersionRow,
     ExerciseRecordRow,
     ExerciseRow,
     StepRecordRow,
@@ -89,8 +90,20 @@ def is_comparable(a: ComparisonKey, b: ComparisonKey) -> bool:
 
 
 @dataclass(frozen=True)
+class SetProgress:
+    """일반 운동 기록 하나의 완료 세트 / 목표 세트. 모르면 둘 다 또는 하나가 None이다."""
+
+    completed_sets: int | None
+    target_sets: int | None
+
+
+@dataclass(frozen=True)
 class ExerciseSummary:
-    """일반 운동 하나의 오늘 요약."""
+    """일반 운동 하나의 오늘 요약.
+
+    점수는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다. (develop #9 기준:
+    services/exercise_record_score.py) 그래서 기록마다 완료 세트 / 목표 세트를 함께 둔다.
+    """
 
     exercise_id: int
     exercise_name: str
@@ -99,6 +112,8 @@ class ExerciseSummary:
     best_score: float | None
     first_score: float | None
     last_score: float | None
+    # 기록 순서대로 하나씩
+    sets: tuple[SetProgress, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -112,6 +127,8 @@ class StepSummary:
     last_score: float | None
     evaluation_counts: dict[str, int]
     feedback_code_counts: dict[str, int]
+    # exercise_step_records.status가 PASS(80점 이상)인 시도 수. CV 판정(evaluation_counts)과는 따로 센다.
+    pass_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -166,6 +183,27 @@ def _sorted_attempts(attempts: list[StepRecordRow]) -> list[StepRecordRow]:
     return sorted(attempts, key=lambda item: (item.created_at, item.id))
 
 
+def completed_sets_of(
+    total_score: float | None, criteria: CriteriaVersionRow | None
+) -> int | None:
+    """일반 운동 점수를 완료 세트 수로 되돌린다. 되돌릴 수 없으면 None이다.
+
+    팀은 완료 세트를 따로 저장하지 않고 total_score = min(100, 완료 세트 × 세트당 점수)만
+    저장한다. (develop #9 기준: services/exercise_record_score.py) 100점 상한에 걸려 몇 세트인지
+    하나로 정할 수 없거나, 세트당 점수로 나누어떨어지지 않으면 지어내지 않고 None으로 둔다.
+    """
+    if total_score is None or criteria is None or criteria.score_per_set <= 0:
+        return None
+    capped = criteria.target_sets * criteria.score_per_set > config.SCORE_MAX
+    if capped and total_score >= config.SCORE_MAX:
+        return None
+    raw = total_score / criteria.score_per_set
+    sets = round(raw)
+    if abs(raw - sets) > 0.01 or not 0 <= sets <= criteria.target_sets:
+        return None
+    return sets
+
+
 def group_step_attempts(
     step_records: list[StepRecordRow],
 ) -> dict[int, list[StepRecordRow]]:
@@ -184,12 +222,14 @@ def build_stats(
     step_records: list[StepRecordRow],
     exercises: list[ExerciseRow],
     steps: list[StepRow],
+    criteria: list[CriteriaVersionRow],
     due_date: date | None,
     today: date,
 ) -> ReportStats:
     """오늘 기록을 집계한다."""
     exercise_names = {row.id: row for row in exercises}
     step_rows = {row.id: row for row in steps}
+    criteria_by_id = {row.id: row for row in criteria}
 
     by_exercise: dict[int, list[ExerciseRecordRow]] = {}
     for record in records:
@@ -200,6 +240,15 @@ def build_stats(
         items = sorted(items, key=lambda item: (item.created_at, item.id))
         scores = [item.total_score for item in items if item.total_score is not None]
         row = exercise_names.get(exercise_id)
+        sets = []
+        for item in items:
+            version = criteria_by_id.get(item.exercise_criteria_version_id)
+            sets.append(
+                SetProgress(
+                    completed_sets=completed_sets_of(item.total_score, version),
+                    target_sets=version.target_sets if version else None,
+                )
+            )
         exercise_summaries.append(
             ExerciseSummary(
                 exercise_id=exercise_id,
@@ -209,11 +258,12 @@ def build_stats(
                 best_score=max(scores) if scores else None,
                 first_score=scores[0] if scores else None,
                 last_score=scores[-1] if scores else None,
+                sets=tuple(sets),
             )
         )
 
-    # 완료 수는 status로만 센다. is_completed는 '이 기록을 끝까지 했다'인지
-    # '이 운동을 한 번이라도 수료했다'인지 알 수 없어 읽지 않는다. (거짓 칭찬 방지)
+    # 완료 수는 status로만 센다. is_completed는 develop #9에서 status가 COMPLETED일 때만 참이라
+    # 같은 뜻을 두 곳에서 읽지 않는다.
     completed_count = sum(
         1 for record in records if record.status == config.EXERCISE_STATUS_COMPLETED
     )
@@ -249,6 +299,9 @@ def build_stats(
                 last_score=scores[-1] if scores else None,
                 evaluation_counts=evaluation_counts,
                 feedback_code_counts=dict(code_counts),
+                pass_count=sum(
+                    1 for attempt in attempts if attempt.status == config.STEP_STATUS_PASS
+                ),
             )
         )
     step_summaries.sort(

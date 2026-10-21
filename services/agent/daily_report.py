@@ -92,6 +92,13 @@ def _stats_for_llm(stats: ReportStats) -> dict:
                 "best_score": item.best_score,
                 "first_score": item.first_score,
                 "last_score": item.last_score,
+                "sets": [
+                    {
+                        "completed_sets": progress.completed_sets,
+                        "target_sets": progress.target_sets,
+                    }
+                    for progress in item.sets
+                ],
             }
             for item in stats.exercises
         ],
@@ -101,6 +108,7 @@ def _stats_for_llm(stats: ReportStats) -> dict:
                 "attempt_count": item.attempt_count,
                 "best_score": item.best_score,
                 "last_score": item.last_score,
+                "pass_count": item.pass_count,
                 "evaluation_counts": item.evaluation_counts,
             }
             for item in stats.steps
@@ -178,11 +186,21 @@ def build_daily_report(
     step_records = reader.list_step_records(user.id, day)
     steps = reader.get_steps(sorted({r.exercise_step_id for r in step_records}))
     exercises = reader.get_exercises(sorted({r.exercise_id for r in records}))
+    criteria = reader.get_criteria_versions(
+        sorted(
+            {
+                r.exercise_criteria_version_id
+                for r in records
+                if r.exercise_criteria_version_id is not None
+            }
+        )
+    )
     stats = report_stats.build_stats(
         records=records,
         step_records=step_records,
         exercises=exercises,
         steps=steps,
+        criteria=criteria,
         due_date=user.due_date,
         today=day,
     )

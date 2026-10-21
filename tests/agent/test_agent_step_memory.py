@@ -91,13 +91,14 @@ def _attempt(
     status: str | None = "FAIL",
     codes: tuple[str, ...] = ("ARMS_NOT_OPEN_ENOUGH",),
     modified_minutes: int | None = None,
+    record_status: str = "NON_PASS",
 ) -> StepRecordRow:
     created = BASE + timedelta(minutes=rid)
     return StepRecordRow(
         id=rid,
         exercise_id=1,
         exercise_step_id=step_id,
-        status="완료",
+        status=record_status,
         step_score=score,
         created_at=created,
         modified_at=created
@@ -173,7 +174,7 @@ def test_판정_결과가_없는_스텝은_LLM을_부르지_않고_코드가_쓴
 ) -> None:
     attempts = [
         _attempt(1, 12, score=52.0, status="NOT_EVALUATED", codes=()),
-        _attempt(2, 12, score=68.0, status="NOT_EVALUATED", codes=()),
+        _attempt(2, 12, score=88.0, status="NOT_EVALUATED", codes=(), record_status="PASS"),
     ]
     llm = FakeLlm()
 
@@ -182,15 +183,22 @@ def test_판정_결과가_없는_스텝은_LLM을_부르지_않고_코드가_쓴
 
     assert llm.calls == []
     assert outcome.llm_calls == 0
-    assert outcome.memos[12] == "오른쪽 스텝: 2번 시도, 52점에서 68점, 판정 결과 없음"
+    # 통과 횟수는 스텝 기록 status(PASS)를 센 것이다. CV 판정이 없어도 셀 수 있다.
+    assert outcome.memos[12] == (
+        "오른쪽 스텝: 2번 시도 중 1번 통과, 52점에서 88점, 자세 판정 결과 없음"
+    )
 
 
 def test_점수도_판정도_없으면_점수_없음으로_쓴다(db_session: Session, user: User) -> None:
-    attempts = [_attempt(1, 12, score=None, status="NOT_EVALUATED", codes=())]
+    attempts = [
+        _attempt(
+            1, 12, score=None, status="NOT_EVALUATED", codes=(), record_status="NOT_EVALUATED"
+        )
+    ]
 
     outcome = _refresh(db_session, user, attempts, FakeLlm())
 
-    assert outcome.memos[12] == "오른쪽 스텝: 1번 시도, 점수 없음, 판정 결과 없음"
+    assert outcome.memos[12] == "오른쪽 스텝: 1번 시도 중 0번 통과, 점수 없음, 자세 판정 결과 없음"
 
 
 def test_메모가_최신이면_다시_쓰지_않는다(db_session: Session, user: User) -> None:

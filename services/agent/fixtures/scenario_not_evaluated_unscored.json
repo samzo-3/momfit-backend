@@ -1,17 +1,18 @@
 {
-  "note": "지금 실데이터 모양 중 더 이른 단계. 허용 범위가 비어 있어 점수(step_score, total_score)까지 비어 있다.",
+  "note": "지금 실데이터 모양 중 더 이른 단계. 허용 범위가 비어 있어 스텝 점수(step_score)까지 비어 있다. 일반 운동 total_score는 세트 점수라 비지 않는다. (develop #9 기준)",
   "exercise_records": [
     {
       "id": 51,
       "user_id": 1,
       "exercise_id": 1,
       "exercise_criteria_version_id": 1,
-      "total_score": null,
-      "status": "완료",
+      "total_score": 100.0,
+      "status": "COMPLETED",
       "started_at": "2026-10-20T01:00:00",
       "ended_at": "2026-10-20T01:12:00",
       "created_at": "2026-10-20T01:00:00",
-      "modified_at": "2026-10-20T01:12:00"
+      "modified_at": "2026-10-20T01:12:00",
+      "is_completed": true
     }
   ],
   "exercise_step_records": [
@@ -20,7 +21,7 @@
       "user_id": 1,
       "exercise_id": 1,
       "exercise_step_id": 12,
-      "status": "완료",
+      "status": "NOT_EVALUATED",
       "step_score": null,
       "step_report": {
         "schema_version": 1,
@@ -66,7 +67,7 @@
       "user_id": 1,
       "exercise_id": 1,
       "exercise_step_id": 12,
-      "status": "완료",
+      "status": "NOT_EVALUATED",
       "step_score": null,
       "step_report": {
         "schema_version": 1,
@@ -112,7 +113,7 @@
       "user_id": 1,
       "exercise_id": 1,
       "exercise_step_id": 13,
-      "status": "완료",
+      "status": "NOT_EVALUATED",
       "step_score": null,
       "step_report": {
         "schema_version": 1,

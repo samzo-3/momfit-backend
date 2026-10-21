@@ -16,22 +16,26 @@ RULES_DIR = AGENT_DIR / "rules"
 FIXTURES_DIR = AGENT_DIR / "fixtures"
 RUNS_DIR = AGENT_DIR / "runs"
 
-# --- 팀 답을 기다리는 가정 -------------------------------------------------
-# 팀이 확정하면 이 블록만 고친다. 코드 곳곳에 흩어 두지 않는다.
+# --- 팀 코드에서 가져온 값 -------------------------------------------------
+# 팀 모델·스키마가 정한 값을 옮겨 왔다. 팀 코드가 바뀌면 이 블록만 고친다. 코드 곳곳에 흩어 두지 않는다.
 
-# CV 명세서는 step_report_json, 팀 최종 ERD는 step_report다. (확인 중)
+# exercise_step_records의 CV 결과 JSON 컬럼.
+# (develop #9 기준: models/exercise_step_record.py. CV 명세서의 step_report_json이 아니다)
 STEP_REPORT_COLUMN = "step_report"
 # 점수 범위. 이 범위를 벗어난 값은 집계에서 버린다.
+# (develop #9 기준: schemas/exercise_step_record.py의 step_score 0~100,
+#  services/exercise_record_score.py의 total_score 100점 상한)
 SCORE_MIN = 0.0
 SCORE_MAX = 100.0
-# exercise_records.status에 저장되는 값. 한글인지 영문 코드인지 확인 중.
-EXERCISE_STATUS_COMPLETED = "완료"
-# exercise_step_records.status에 저장되는 값. 지금 집계에 쓰지는 않지만 함께 확인 중이다.
-STEP_STATUS_IN_PROGRESS = "진행중"
-STEP_STATUS_RESTARTED = "재시작"
-STEP_STATUS_COMPLETED = "완료"
-# voice_cues.category에 저장되는 값. 자세 배우기 모드 공통 안내를 고를 때 쓴다.
-VOICE_CUE_CATEGORY_LEARN = "자세 배우기 모드"
+# exercise_records.status. IN_PROGRESS / PAUSED / COMPLETED 중 하나다.
+# (develop #9 기준: schemas/exercise_record.py)
+EXERCISE_STATUS_COMPLETED = "COMPLETED"
+# exercise_step_records.status. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
+# PASS는 80점 이상일 때만 저장된다. (develop #9 기준: schemas/exercise_step_record.py)
+STEP_STATUS_PASS = "PASS"
+# voice_cues.category. 자세 배우기 안내만 교정 문장으로 쓴다. TRACKING / EXERCISE / STUDY 중 하나다.
+# (develop #9 기준: schemas/voice_cue.py, repositories/voice_cue_repository.py)
+VOICE_CUE_CATEGORY_STUDY = "STUDY"
 
 # --- 에이전트 자체 한계값 ---------------------------------------------------
 
@@ -54,7 +58,7 @@ def _env(name: str, default: str) -> str:
 
 
 def data_source() -> str:
-    """fixture | db. 팀의 운동 기록 테이블이 아직 없어 기본은 fixture다."""
+    """fixture | db. 팀 테이블에 실제 기록이 없는 개발 환경을 위해 기본은 fixture다."""
     return _env("AGENT_DATA_SOURCE", "fixture").lower()
 
 
