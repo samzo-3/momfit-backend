@@ -2,7 +2,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Numeric, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.clock import utc_now
@@ -27,6 +27,7 @@ class ExerciseRecord(Base):
         ForeignKey("exercise_criteria_versions.id"),
         nullable=False,
     )
+    completed_sets: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_score: Mapped[Decimal] = mapped_column(
         Numeric(6, 2), nullable=False, default=0
     )

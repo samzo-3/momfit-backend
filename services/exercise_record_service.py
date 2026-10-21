@@ -10,6 +10,7 @@ from models.exercise import Exercise
 from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_record import ExerciseRecord
 from services.exercise_record_score import calculate_set_score
+from services.exercise_scoring_config import get_scoring_rule
 
 
 def _save(db: Session, record: ExerciseRecord) -> ExerciseRecord:
@@ -42,7 +43,10 @@ def create_record(db: Session, user_id: int, exercise_id: int):
 
     criteria = db.scalar(
         select(ExerciseCriteriaVersion)
-        .where(ExerciseCriteriaVersion.exercise_id == exercise_id)
+        .where(
+            ExerciseCriteriaVersion.exercise_id == exercise_id,
+            ExerciseCriteriaVersion.status == "ACTIVE",
+        )
         .order_by(ExerciseCriteriaVersion.id.desc())
         .limit(1)
     )
@@ -88,15 +92,19 @@ def _set_progress(
             raise HTTPException(409, "EXERCISE_CRITERIA_NOT_FOUND")
 
         try:
+            rule = get_scoring_rule(record.exercise_id)
             new_score = calculate_set_score(
-                completed_sets, criteria.target_sets, criteria.score_per_set
+                completed_sets,
+                rule.target_sets,
+                rule.score_per_set,
             )
         except ValueError:
             raise HTTPException(422, "INVALID_COMPLETED_SETS") from None
 
-        if new_score < record.total_score:
+        if completed_sets < record.completed_sets:
             raise HTTPException(409, "COMPLETED_SETS_CANNOT_DECREASE")
 
+        record.completed_sets = completed_sets
         record.total_score = new_score
         if complete:
             record.status = "COMPLETED"
