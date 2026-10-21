@@ -4,7 +4,7 @@ name: Backend - Build and Publish
 on:
   push:
     branches:
-      - main
+      - develop
 
 permissions:
   contents: read
@@ -72,6 +72,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/samzo-3/momfit-backend:sha-${{ github.sha }}
-            ghcr.io/samzo-3/momfit-backend:main-${{ github.run_number }}
+            ghcr.io/samzo-3/momfit-backend:develop-${{ github.run_number }}
           labels: |
             org.opencontainers.image.source=https://github.com/samzo-3/momfit-backend
