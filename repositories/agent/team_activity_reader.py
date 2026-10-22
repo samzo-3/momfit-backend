@@ -436,7 +436,7 @@ class SqlTeamActivityReader:
         start, end = kst_day_bounds_utc(day)
         rows = self._rows(
             f"""
-            SELECT id, exercise_id, exercise_step_id, step_result_status AS status, step_score,
+            SELECT id, exercise_id, exercise_step_id, {config.STEP_RESULT_COLUMN} AS status, step_score,
                    {config.STEP_REPORT_COLUMN}, created_at, modified_at
               FROM exercise_step_records
              WHERE user_id = :user_id
@@ -555,7 +555,7 @@ class SqlTeamActivityReader:
         )
         step_rows = self._rows(
             f"""
-            SELECT id, exercise_id, exercise_step_id, step_result_status AS status, step_score,
+            SELECT id, exercise_id, exercise_step_id, {config.STEP_RESULT_COLUMN} AS status, step_score,
                    {config.STEP_REPORT_COLUMN}, created_at, modified_at
               FROM exercise_step_records
              WHERE user_id = :user_id

@@ -76,7 +76,7 @@ fixture 모드는 저장한 리포트가 없으니 이 규칙 없이 요청마�
   리포트는 '완료 세트 / 목표 세트'로 보여 준다. 완료 세트는 `exercise_records.completed_sets`,
   목표 세트는 팀 점수 규칙(`services/exercise_scoring_config.py`)에서 읽는다. LLM에는 일반 운동
   점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
-- 스텝 통과 횟수는 `exercise_step_records.status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
+- 스텝 통과 횟수는 `exercise_step_records.step_result_status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
   부를지는 지금처럼 `step_report`의 CV 판정과 피드백 코드로 정한다.
 - 숫자와 판정은 코드가, 문장은 LLM이 쓴다. 무엇을 기억할지와 다음 집중 스텝 후보도 코드가 정한다.
 - 원인은 CV가 감지한 피드백 코드만 말한다. 코드가 없으면 원인을 말하지 않는다.
@@ -175,7 +175,8 @@ ANTHROPIC_API_KEY=...
 
 ## 팀 코드에서 가져온 값과 팀 확인 대기
 
-컬럼 이름, `status`·`category` 값, 점수 범위, 목표 세트는 develop #15의 팀 모델·스키마·점수 규칙에 맞췄다. `config.py`
+컬럼 이름, `status`·`category` 값, 점수 범위, 목표 세트는 develop #15의 팀 모델·스키마·점수 규칙에 맞췄다.
+스텝 판정 컬럼은 develop 73d26a9에서 `status`에서 `step_result_status`로 옮겨졌다. `config.py`
 위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
 아직 팀 확인을 기다리는 것:
