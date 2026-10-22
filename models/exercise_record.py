@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import TimestampMixin
 
 if TYPE_CHECKING:
@@ -37,7 +38,9 @@ class ExerciseRecord(TimestampMixin, Base):
     __tablename__ = "exercise_records"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(
+        BigIntId, ForeignKey("users.id"), index=True
+    )
     exercise_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("exercises.id"), index=True)
     exercise_criteria_version_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("exercise_criteria_versions.id"), index=True

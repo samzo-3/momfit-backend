@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from core.clock import utc_now
 from db.base import Base
+from db.types import BigIntId
 
 # FK가 가리키는 팀 테이블이 create_all에 늘 함께 잡히도록 팀 모델을 불러온다.
 # (scripts/agent/run_scenarios.py처럼 main.py를 거치지 않고 models만 import하는 곳이 있다)
@@ -35,7 +36,7 @@ class AgentFeedback(Base):
     # 팀의 탈퇴 삭제(30일 유예 후 users 행 삭제)가 이 테이블 때문에 막히지 않게 하고,
     # 탈퇴한 사람의 기록도 함께 지워지도록 CASCADE를 둔다.
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+        BigIntId, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     # STEP 행에는 그날 그 스텝의 '마지막 시도' 기록 번호를 넣는다. 메모가 어느 시도까지
     # 반영했는지 알려 주는 표시다. DAILY 행은 특정 스텝 기록이 없어서 비어 있다.

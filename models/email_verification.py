@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import CreatedAtMixin
 
 
@@ -19,7 +20,9 @@ class EmailVerification(CreatedAtMixin, Base):
         Index("ix_email_verifications_created_at", "created_at"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntId, primary_key=True, autoincrement=True
+    )
     email: Mapped[str] = mapped_column(String(255))
     purpose: Mapped[str] = mapped_column(String(20))
     code_hash: Mapped[str] = mapped_column(String(64))

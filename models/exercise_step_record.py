@@ -7,6 +7,7 @@ from sqlalchemy import BigInteger, ForeignKey, JSON, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import TimestampMixin
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class ExerciseStepRecord(TimestampMixin, Base):
     )
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), index=True
+        BigIntId, ForeignKey("users.id"), index=True
     )
 
     exercise_id: Mapped[int] = mapped_column(

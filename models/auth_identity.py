@@ -6,6 +6,7 @@ from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import CreatedAtMixin
 
 if TYPE_CHECKING:
@@ -21,9 +22,11 @@ class AuthIdentity(CreatedAtMixin, Base):
     __tablename__ = "auth_identities"
     __table_args__ = (UniqueConstraint("provider", "provider_user_id"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntId, primary_key=True, autoincrement=True
+    )
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+        BigIntId, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     provider: Mapped[str] = mapped_column(String(20))
     # 로컬은 소문자로 정규화한 login_id, 소셜은 provider가 준 사용자 id
