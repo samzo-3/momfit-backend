@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 STATUS_ACTIVE = "active"
 STATUS_WITHDRAWN = "withdrawn"
 
+ROLE_USER = "user"
+ROLE_ADMIN = "admin"
+
 
 class User(TimestampMixin, Base):
     """사용자 프로필. 로그인 수단은 AuthIdentity가 가진다.
@@ -47,6 +50,10 @@ class User(TimestampMixin, Base):
     )
     # 탈퇴를 요청한 시각. 이 시각에서 유예 기간이 지나면 삭제 대상이 된다. 복구하면 NULL로 돌아간다.
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # user: 일반 회원 / admin: 관리자. 가입 API로는 지정할 수 없고 DB에서 직접 바꾼다.
+    role: Mapped[str] = mapped_column(
+        String(20), default=ROLE_USER, server_default=ROLE_USER
+    )
 
     identities: Mapped[list["AuthIdentity"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

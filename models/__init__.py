@@ -1,9 +1,11 @@
 """SQLAlchemy ORM 모델. create_all이 모든 테이블을 알 수 있도록 여기서 import한다."""
 
+from models.admin_audit_log import AdminAuditLog
 from models.agent.agent_daily_feedback import AgentDailyFeedback
 from models.agent.agent_step_feedback import AgentStepFeedback
 from models.agent.daily_feedback_source import DailyFeedbackSource
 from models.auth_identity import AuthIdentity
+from models.daily_visit import DailyVisit
 from models.email_verification import EmailVerification
 from models.exercise import (
     Exercise,
@@ -18,10 +20,12 @@ from models.user import User
 from models.user_goal import UserGoal
 
 __all__ = [
+    "AdminAuditLog",
     "AgentDailyFeedback",
     "AgentStepFeedback",
     "AuthIdentity",
     "DailyFeedbackSource",
+    "DailyVisit",
     "EmailVerification",
     "Exercise",
     "ExerciseCriteriaVersion",

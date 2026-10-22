@@ -40,6 +40,7 @@ def test_내_정보를_조회한다(client: TestClient) -> None:
         "pregnancy_week": 28,
         "exercise_level": "low",
         "onboarding_completed": True,
+        "role": "user",
     }
 
 

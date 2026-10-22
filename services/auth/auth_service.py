@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from core.clock import today_kst, utc_now
+from core.clock import kst_date, today_kst, utc_now
 from core.config import settings
 from core.errors import AppError
 from core.security import (
@@ -23,6 +23,7 @@ from models.refresh_token import RefreshToken
 from models.user import STATUS_ACTIVE, User
 from repositories import (
     auth_identity_repository,
+    daily_visit_repository,
     refresh_token_repository,
     user_repository,
 )
@@ -64,6 +65,8 @@ def issue_tokens(
             expires_at=now + timedelta(days=settings.refresh_token_expire_days),
         ),
     )
+    # 토큰을 발급하는 모든 경로(가입·로그인·갱신·카카오·복구)가 그날의 방문으로 기록된다.
+    daily_visit_repository.record(db, user_id, kst_date(now))
     return IssuedTokens(
         access_token=create_access_token(user_id),
         refresh_token=refresh_token,

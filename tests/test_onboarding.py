@@ -58,6 +58,7 @@ def test_카카오_가입자가_제출하면_온보딩이_완료되고_프로필
         "pregnancy_week": 28,
         "exercise_level": "medium",
         "onboarding_completed": True,
+        "role": "user",
     }
     db_session.expire_all()
     user = db_session.get(User, 1)

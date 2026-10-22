@@ -127,6 +127,7 @@ class TestKakaoCallbackSuccess:
             "pregnancy_week": None,
             "exercise_level": None,
             "onboarding_completed": False,
+            "role": "user",
         }
 
     def test_다시_로그인하면_같은_계정으로_로그인한다(
