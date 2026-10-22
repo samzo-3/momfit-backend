@@ -63,6 +63,11 @@ LLM은 오늘 리포트에만 부르고, 그것도 그날 마지막 리포트 �
 쓸 수 없을 때 오늘은 새로 만든다. 지난 날짜는 다시 만들지 않고 숫자만으로 쓴 문장
 (`이날 운동 3회, … 하신 기록이 있어요.`)을 돌려준다.
 
+DAILY 행의 `exercise_step_records_id`에는 그날 모든 스텝 기록 중 마지막 시도 번호를 넣는다. 팀 최종 ERD에서
+이 컬럼이 NOT NULL이고, ERD는 일일 리포트도 '스텝 수행하면 기록되게' 설계했기 때문이다. 그래서 스텝 기록이
+없는 날(일반 운동만 한 날)은 리포트를 보여 주기만 하고 저장하지 않는다. 그런 날 오늘 리포트는 요청마다
+새로 만들고(LLM 호출), 지난 날짜는 숫자만으로 쓴 문장을 돌려준다.
+
 fixture 모드는 저장한 리포트가 없으니 이 규칙 없이 요청마다 새로 만든다.
 
 ## 경계
@@ -194,9 +199,13 @@ ANTHROPIC_API_KEY=...
 스텝 판정 컬럼은 develop 73d26a9에서 `status`에서 `step_result_status`로 옮겨졌다. `config.py`
 위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
+`agent_feedback`은 팀 최종 ERD를 따른다(`id` BIGINT, `exercise_step_records_id` BIGINT NOT NULL).
+아직 ERD와 다른 것은 `user_id`의 타입 하나다(코드는 INTEGER, ERD는 BIGINT). 팀 `users.id`(INTEGER)를 FK로
+가리키는데, MySQL은 타입이 다른 FK를 만들지 않아서(오류 3780) `users.id`를 따른다. 팀이 `users.id`를
+ERD대로 바꿀 때 함께 바꾼다. `test_agent_db_mode.py`의 ERD 대조 테스트가 이 상태를 지킨다.
+
 아직 팀 확인을 기다리는 것:
 
-- `agent_feedback.exercise_step_records_id`의 NULL 허용 (DAILY 행은 비어야 한다. 팀 최종 ERD는 NOT NULL)
 - 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 CV 명세의 예시 6개)
 
 읽지 않는 컬럼: `exercise_records.is_completed`(develop #15에서는 `status`가 `completed`일 때만 참이라

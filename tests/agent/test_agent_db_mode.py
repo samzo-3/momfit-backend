@@ -9,6 +9,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.dialects import mysql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from core.clock import utc_now
@@ -129,7 +131,8 @@ def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User
     memos = _feedback(db_session, FEEDBACK_TYPE_STEP)
     assert [memo.exercise_step_records_id for memo in memos] == [15, 17]
     daily = _feedback(db_session, FEEDBACK_TYPE_DAILY)
-    assert len(daily) == 1 and daily[0].exercise_step_records_id is None
+    # DAILY 행에는 그날 모든 스텝 기록 중 마지막 시도 번호를 넣는다. (ERD상 NOT NULL)
+    assert len(daily) == 1 and daily[0].exercise_step_records_id == 17
 
 
 def test_DB_모드는_일시정지_기록과_측정_불가_스텝을_나눠_센다(
@@ -255,6 +258,43 @@ def test_스텝_기록을_지우면_그_STEP_메모만_함께_지워진다(
     db_session.delete(db_session.get(ExerciseStepRecord, 15))
     db_session.commit()
 
-    # 스텝 12의 메모(15번 기록)만 지워지고, 스텝 13의 메모와 DAILY(번호 없음)는 남는다.
+    # 스텝 12의 메모(15번 기록)만 지워지고, 스텝 13의 메모와 DAILY(둘 다 17번 기록)는 남는다.
     assert [m.exercise_step_records_id for m in _feedback(db_session, FEEDBACK_TYPE_STEP)] == [17]
     assert len(_feedback(db_session, FEEDBACK_TYPE_DAILY)) == 1
+
+
+def test_exercise_step_records_id는_ERD대로_비울_수_없다(db_session: Session, user: User) -> None:
+    # 팀 최종 ERD에서 agent_feedback.exercise_step_records_id는 NOT NULL이다.
+    db_session.add(
+        AgentFeedback(
+            user_id=user.id,
+            exercise_step_records_id=None,
+            feedback_type=FEEDBACK_TYPE_DAILY,
+            today_summary="한마디",
+            report_date=datetime(2026, 10, 19),
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+    db_session.rollback()
+
+
+def test_agent_feedback_컬럼은_ERD와_같다() -> None:
+    # 팀 최종 ERD의 agent_feedback을 MySQL 타입으로 옮긴 것. user_id만 팀 users.id(INTEGER)를 따른다.
+    # (MySQL은 타입이 다른 FK를 만들지 않는다. 팀이 users.id를 ERD대로 바꿀 때 함께 바꾼다)
+    columns = {
+        column.name: (column.type.compile(dialect=mysql.dialect()), column.nullable)
+        for column in AgentFeedback.__table__.columns
+    }
+
+    assert columns == {
+        "id": ("BIGINT", False),
+        "user_id": ("INTEGER", False),
+        "exercise_step_records_id": ("BIGINT", False),
+        "feedback_type": ("VARCHAR(20)", False),
+        "today_summary": ("TEXT", True),
+        "step_summary": ("TEXT", True),
+        "report_date": ("DATETIME", True),
+        "created_at": ("DATETIME", False),
+    }

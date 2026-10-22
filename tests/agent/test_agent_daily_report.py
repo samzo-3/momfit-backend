@@ -19,6 +19,7 @@ from models.agent.agent_feedback import (
 )
 from models.exercise import Exercise
 from models.exercise_record import ExerciseRecord
+from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
@@ -144,6 +145,12 @@ def _rows(db: Session, feedback_type: str) -> list[AgentFeedback]:
     )
 
 
+def _drop_step_records(db: Session) -> None:
+    """자세 배우기는 하지 않고 일반 운동만 한 날로 만든다."""
+    db.query(ExerciseStepRecord).delete()
+    db.commit()
+
+
 def _touch_exercise_record(db: Session, moment: datetime | None = None) -> None:
     """리포트를 만든 뒤 그날 운동 기록 하나가 바뀌었다고 본다(예: 일시정지했다가 나중에 완료)."""
     record = db.query(ExerciseRecord).order_by(ExerciseRecord.id).first()
@@ -186,6 +193,8 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     daily = _rows(db_session, FEEDBACK_TYPE_DAILY)
     assert len(daily) == 1
     assert "다음 집중 스텝: 오른쪽 스텝" in daily[0].today_summary
+    # ERD상 NOT NULL이라 DAILY 행에도 그날 마지막 스텝 기록 번호(10월 19일 01:24의 17번)를 넣는다.
+    assert daily[0].exercise_step_records_id == 17
 
 
 def test_응답에는_대체_이유를_넣지_않는다(
@@ -505,7 +514,7 @@ def test_저장한_다음_집중_스텝이_그날_스텝에_없으면_한마디�
     db_session.add(
         AgentFeedback(
             user_id=db_session.query(User).one().id,
-            exercise_step_records_id=None,
+            exercise_step_records_id=17,
             feedback_type=FEEDBACK_TYPE_DAILY,
             today_summary="오늘도 꾸준히 해 주셨어요.\n다음 집중 스텝: 없는 스텝 — 이유",
             report_date=report_date_of(date.fromisoformat(RECORD_DAY)),
@@ -533,6 +542,60 @@ def test_지난_날짜에_기록이_없으면_이날_문장을_쓴다(
 
     assert body["summary"] == "이날은 운동 기록이 없어요."
     assert llm.calls == []
+
+
+def test_일반_운동만_한_날은_리포트를_보여주되_저장하지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    _drop_step_records(db_session)
+
+    first = _report(client, token).json()
+    second = _report(client, token).json()
+
+    # ERD상 DAILY 행에도 스텝 기록 번호가 필요해서, 스텝 기록이 없는 날은 저장하지 않는다.
+    assert first["summary"] == second["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert first["stats"]["record_count"] == 3
+    assert first["stats"]["step_attempt_count"] == 0
+    assert db_session.query(AgentFeedback).count() == 0
+    # 저장한 리포트가 없으니 오늘은 요청마다 DAILY를 새로 부른다.
+    assert len(llm.calls) == 2
+
+
+def test_일반_운동만_한_지난_날짜는_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    _drop_step_records(db_session)
+    _report(client, token)
+    calls = len(llm.calls)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == "이날 운동 3회 하신 기록이 있어요. 운동 시간은 모두 36분이에요."
+    assert body["next_focus"] is None
+    assert len(llm.calls) == calls
+
+
+def test_건강정보_동의가_없어도_일반_운동만_한_날은_저장하지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    user = db_session.query(User).one()
+    user.health_data_agreed_at = None
+    db_session.commit()
+    _use(db_session, ScriptedLlm())
+    _drop_step_records(db_session)
+
+    body = _report(client, token).json()
+
+    assert FALLBACK_TAIL in body["summary"]
+    assert db_session.query(AgentFeedback).count() == 0
 
 
 def test_가짜_기록_모드는_지난_날짜도_새로_만든다(

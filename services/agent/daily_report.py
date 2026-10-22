@@ -203,6 +203,46 @@ def _split_saved_row(text: str, stats: ReportStats) -> tuple[str, NextFocus | No
     return summary, NextFocus(step_id=step_ids[name], reason=reason)
 
 
+def _last_step_record_id(step_records: list[StepRecordRow]) -> int | None:
+    """그날 모든 스텝 기록 중 마지막 시도 번호. 스텝 기록이 없으면 None이다."""
+    if not step_records:
+        return None
+    return max(step_records, key=lambda row: (row.created_at, row.id)).id
+
+
+def _store_daily(
+    db: Session,
+    user_id: int,
+    day: date,
+    step_record_id: int | None,
+    today_summary: str,
+    read_at: datetime,
+) -> bool:
+    """DAILY 행을 저장하고, 저장했는지 돌려준다.
+
+    팀 최종 ERD에서 agent_feedback.exercise_step_records_id가 NOT NULL이라 DAILY 행에도
+    그날 마지막 시도 번호를 넣는다. 스텝 기록이 없는 날(일반 운동만 한 날)은 저장하지 않는다.
+    그날 리포트는 보여 주기만 하므로, 오늘은 요청마다 새로 만들고 지난 날짜는 숫자만 보여 준다.
+    """
+    if step_record_id is None:
+        logger.info(
+            "스텝 기록이 없는 날이라 리포트를 저장하지 않았습니다. user_id=%s, date=%s",
+            user_id,
+            day,
+        )
+        return False
+    agent_feedback_repository.save_daily_report(
+        db,
+        user_id,
+        step_record_id,
+        report_date_of(day),
+        today_summary,
+        created_at=read_at,
+    )
+    db.commit()
+    return True
+
+
 def _last_touch(
     records: list[ExerciseRecordRow], step_records: list[StepRecordRow]
 ) -> datetime:
@@ -260,6 +300,7 @@ def build_daily_report(
 
     LLM은 오늘 리포트에만, 그것도 그날 마지막 리포트 뒤에 기록이 바뀌었을 때만 부른다.
     지난 날짜는 다시 만들지 않고 그날 만든 리포트를 그대로 돌려준다.
+    스텝 기록이 없는 날은 리포트를 저장하지 않는다. (ERD상 DAILY 행에도 스텝 기록 번호가 필요하다)
     가짜 기록(reader.real_records가 False)이면 agent_feedback을 읽지도 쓰지도 않는다.
     저장한 리포트가 없으니 날짜와 상관없이 그날을 오늘로 보고 매번 새로 만든다.
     """
@@ -341,18 +382,16 @@ def build_daily_report(
             user.id,
             REASON_NO_CONSENT,
         )
-        if save:
-            agent_feedback_repository.save_daily_report(
-                db, user.id, report_date, summary, created_at=read_at
-            )
-            db.commit()
+        saved = save and _store_daily(
+            db, user.id, day, _last_step_record_id(step_records), summary, read_at
+        )
         return DailyReportResult(
             date=day,
             stats=stats,
             safety_notice=notice,
             summary=summary,
             fallback_reason=REASON_NO_CONSENT,
-            saved=save,
+            saved=saved,
         )
 
     # 5. STEP 따라잡기: 메모가 낡은 스텝만 다시 쓴다. 이미 최신이면 LLM을 부르지 않는다.
@@ -447,16 +486,18 @@ def build_daily_report(
         )
 
     # 8. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 DAILY로 저장한다.
+    #    스텝 기록이 없는 날은 저장하지 않는다. (_store_daily)
+    saved = False
     if save:
         focus_step_name = step_names.get(next_focus.step_id) if next_focus else None
-        agent_feedback_repository.save_daily_report(
+        saved = _store_daily(
             db,
             user.id,
-            report_date,
+            day,
+            _last_step_record_id(step_records),
             _today_summary_row(summary, next_focus, focus_step_name),
-            created_at=read_at,
+            read_at,
         )
-        db.commit()
 
     return DailyReportResult(
         date=day,
@@ -470,7 +511,7 @@ def build_daily_report(
         latency_ms=latency_ms if llm_calls else None,
         fallback_reason=reason,
         llm_calls=llm_calls,
-        saved=save,
+        saved=saved,
         input_tokens=input_tokens if llm_calls else None,
         output_tokens=output_tokens if llm_calls else None,
     )
