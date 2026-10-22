@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import TimestampMixin
 
 if TYPE_CHECKING:
@@ -29,7 +30,9 @@ class User(TimestampMixin, Base):
 
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntId, primary_key=True, autoincrement=True
+    )
     nickname: Mapped[str] = mapped_column(String(50))
     # 로컬 가입자만 가진다. 카카오 가입자는 NULL (MySQL unique는 NULL 중복을 허용한다).
     email: Mapped[str | None] = mapped_column(String(255), unique=True)

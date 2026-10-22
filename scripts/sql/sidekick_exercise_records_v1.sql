@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS exercise_criteria_versions (
 
 CREATE TABLE IF NOT EXISTS exercise_records (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id INT NOT NULL,
+    user_id BIGINT NOT NULL,
     exercise_id BIGINT NOT NULL,
     exercise_criteria_version_id BIGINT NOT NULL,
     total_score DECIMAL(6,2) NOT NULL DEFAULT 0,
