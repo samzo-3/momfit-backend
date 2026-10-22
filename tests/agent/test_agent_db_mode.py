@@ -200,6 +200,7 @@ def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: 
             exercise_id=1,
             exercise_step_id=11,
             exercise_criteria_version_id=criteria_version.id,
+            step_session_id="00000000-0000-0000-0000-000000000001",
             status="completed",
             step_result_status="NON_PASS",
             step_score=Decimal("60.00"),

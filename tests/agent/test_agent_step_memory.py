@@ -151,6 +151,7 @@ def user(db_session: Session) -> User:
             step_order=step.step_order,
             step_name=step.step_name,
             clip_video_url="/media/step.mp4",
+            important=False,
         )
         for step in STEPS
     )
@@ -181,6 +182,7 @@ def _store(db: Session, user: User, attempts: list[StepRecordRow]) -> None:
                 exercise_id=attempt.exercise_id,
                 exercise_step_id=attempt.exercise_step_id,
                 exercise_criteria_version_id=criteria_version.id,
+                step_session_id="00000000-0000-0000-0000-000000000001",
                 status="completed",
                 step_result_status=attempt.status,
                 step_score=None if attempt.step_score is None else Decimal(str(attempt.step_score)),

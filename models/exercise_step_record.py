@@ -47,6 +47,8 @@ class ExerciseStepRecord(TimestampMixin, Base):
         BigInteger, ForeignKey("exercise_steps.id"), index=True
     )
 
+    step_session_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
     exercise_criteria_version_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("exercise_criteria_versions.id"),
