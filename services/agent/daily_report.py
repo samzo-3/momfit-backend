@@ -15,6 +15,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 
 from core.clock import today_kst, utc_now
+from models.agent.agent_daily_feedback import TODAY_SUMMARY_MAX_LENGTH
 from models.user import User
 from repositories.agent import agent_feedback_repository
 from repositories.agent.team_activity_reader import (
@@ -233,6 +234,7 @@ def _saved_report(
     if (
         row is None
         or not row.today_summary
+        or row.created_at is None
         # 리포트 시각은 숫자를 센 시각이다. 둘 다 팀 규칙대로 naive UTC라 그대로 비교한다.
         or row.created_at < last_touch
         or row.today_summary == _fallback_summary(stats)
@@ -260,7 +262,7 @@ def build_daily_report(
 
     LLM은 오늘 리포트에만, 그것도 그날 마지막 리포트 뒤에 기록이 바뀌었을 때만 부른다.
     지난 날짜는 다시 만들지 않고 그날 만든 리포트를 그대로 돌려준다.
-    가짜 기록(reader.real_records가 False)이면 agent_feedback을 읽지도 쓰지도 않는다.
+    가짜 기록(reader.real_records가 False)이면 에이전트 테이블을 읽지도 쓰지도 않는다.
     저장한 리포트가 없으니 날짜와 상관없이 그날을 오늘로 보고 매번 새로 만든다.
     """
     deadline = time.monotonic() + config.report_timeout_seconds()
@@ -359,11 +361,12 @@ def build_daily_report(
     outcome = refresh_step_memories(
         db,
         user_id=user.id,
-        day=day,
         step_records=step_records,
         steps=steps,
         memos=(
-            agent_feedback_repository.list_step_memos(db, user.id, report_date)
+            agent_feedback_repository.list_step_memos(
+                db, user.id, [record.id for record in step_records]
+            )
             if save
             else []
         ),
@@ -431,8 +434,20 @@ def build_daily_report(
                 reason = REASON_OUTPUT_CHECK
                 detail = checked.detail
             else:
-                summary = checked.summary
-                next_focus = checked.next_focus
+                focus = checked.next_focus
+                row = _today_summary_row(
+                    checked.summary,
+                    focus,
+                    step_names.get(focus.step_id) if focus else None,
+                )
+                if len(row) > TODAY_SUMMARY_MAX_LENGTH:
+                    # 저장 칸(팀 최종 ERD의 today_summary VARCHAR(255))에 들어가지 않으면 대체 문장을 쓴다.
+                    # 저장하지 않는 가짜 기록 모드에서도 똑같이 걸러서, 두 모드가 같은 문장을 보여 준다.
+                    reason = REASON_OUTPUT_CHECK
+                    detail = f"저장할 문장이 {TODAY_SUMMARY_MAX_LENGTH}자를 넘음 ({len(row)}자)"
+                else:
+                    summary = checked.summary
+                    next_focus = focus
 
     if summary is None:
         summary = _fallback_summary(stats)
@@ -446,7 +461,9 @@ def build_daily_report(
             detail,
         )
 
-    # 8. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 DAILY로 저장한다.
+    # 8. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 agent_daily_feedback에 저장한다.
+    #    LLM이 쓴 한마디면 참고한 스텝 메모를 daily_feedback_sources에 잇는다.
+    #    대체 문장은 숫자만으로 썼으니 잇지 않는다.
     if save:
         focus_step_name = step_names.get(next_focus.step_id) if next_focus else None
         agent_feedback_repository.save_daily_report(
@@ -455,6 +472,7 @@ def build_daily_report(
             report_date,
             _today_summary_row(summary, next_focus, focus_step_name),
             created_at=read_at,
+            step_feedback_ids=outcome.memo_ids.values() if reason is None else (),
         )
         db.commit()
 

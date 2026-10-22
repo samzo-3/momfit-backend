@@ -12,14 +12,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from core.clock import utc_now
-from models.agent.agent_feedback import (
-    FEEDBACK_TYPE_DAILY,
-    FEEDBACK_TYPE_STEP,
-    AgentFeedback,
-)
+from models.agent.agent_daily_feedback import AgentDailyFeedback
+from models.agent.agent_step_feedback import AgentStepFeedback
+from models.agent.daily_feedback_source import DailyFeedbackSource
 from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_step_record import ExerciseStepRecord
 from models.user import User
+from repositories.agent import agent_feedback_repository
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
     SqlTeamActivityReader,
@@ -84,13 +83,12 @@ def _report(db: Session, user: User, day: date, reader) -> tuple[DailyReportResu
     return result, llm.daily_payloads[-1]
 
 
-def _feedback(db: Session, feedback_type: str) -> list[AgentFeedback]:
-    return (
-        db.query(AgentFeedback)
-        .filter(AgentFeedback.feedback_type == feedback_type)
-        .order_by(AgentFeedback.id)
-        .all()
-    )
+def _step_memos(db: Session) -> list[AgentStepFeedback]:
+    return db.query(AgentStepFeedback).order_by(AgentStepFeedback.id).all()
+
+
+def _daily(db: Session) -> list[AgentDailyFeedback]:
+    return db.query(AgentDailyFeedback).order_by(AgentDailyFeedback.id).all()
 
 
 def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User) -> None:
@@ -126,10 +124,14 @@ def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User
     # STUDY가 아닌 안내(109, EXERCISE)는 쓰지 않는다.
     assert corrections[13] == ["왼발을 한 걸음 더 옆으로 내밀어 주세요."]
 
-    memos = _feedback(db_session, FEEDBACK_TYPE_STEP)
+    memos = _step_memos(db_session)
     assert [memo.exercise_step_records_id for memo in memos] == [15, 17]
-    daily = _feedback(db_session, FEEDBACK_TYPE_DAILY)
-    assert len(daily) == 1 and daily[0].exercise_step_records_id is None
+    daily = _daily(db_session)
+    assert len(daily) == 1 and daily[0].report_date == datetime(2026, 10, 19, 0, 0)
+    # LLM이 두 스텝 메모를 보고 한마디를 썼으니 두 메모 모두 daily_feedback_sources에 잇는다.
+    assert agent_feedback_repository.list_daily_feedback_sources(db_session, daily[0].id) == [
+        memo.id for memo in memos
+    ]
 
 
 def test_DB_모드는_일시정지_기록과_측정_불가_스텝을_나눠_센다(
@@ -169,11 +171,12 @@ def test_fixture_모드와_DB_모드는_같은_결과를_낸다(
 ) -> None:
     seed_scenario(db_session, user.id, scenario)
 
-    # fixture 모드는 agent_feedback을 읽지도 쓰지도 않아서, 먼저 돌려도 DB 모드에 끼어들지 않는다.
+    # fixture 모드는 에이전트 테이블을 읽지도 쓰지도 않아서, 먼저 돌려도 DB 모드에 끼어들지 않는다.
     from_fixture, fixture_payload = _report(
         db_session, user, day, FixtureTeamActivityReader.from_scenario(scenario)
     )
-    assert db_session.query(AgentFeedback).count() == 0
+    assert db_session.query(AgentStepFeedback).count() == 0
+    assert db_session.query(AgentDailyFeedback).count() == 0
     from_db, db_payload = _report(db_session, user, day, SqlTeamActivityReader(db_session))
 
     assert from_db.stats == from_fixture.stats
@@ -220,9 +223,7 @@ def test_step_report가_비어_있으면_판정_없음으로_본다(db_session: 
     step = next(item for item in result.stats.steps if item.exercise_step_id == 11)
     assert step.evaluation_counts["NOT_EVALUATED"] == 1
     # 판정이 없으니 STEP 메모는 LLM이 아니라 코드가 쓴다.
-    memo = next(
-        row for row in _feedback(db_session, FEEDBACK_TYPE_STEP) if row.exercise_step_records_id == 70
-    )
+    memo = next(row for row in _step_memos(db_session) if row.exercise_step_records_id == 70)
     assert memo.step_summary == "준비 자세: 1번 시도 중 0번 통과, 60점, 자세 판정 결과 없음"
 
 
@@ -245,7 +246,7 @@ def test_message가_빈_교정_문장은_건너뛴다(
     assert "LEFT_ARM_TOO_LOW" not in cues
 
 
-def test_스텝_기록을_지우면_그_STEP_메모만_함께_지워진다(
+def test_스텝_기록을_지우면_그_스텝_메모와_연결만_함께_지워진다(
     db_session: Session, user: User
 ) -> None:
     # FK 검사는 tests/agent/conftest.py가 SQLite에서도 켜 둔다.
@@ -254,7 +255,35 @@ def test_스텝_기록을_지우면_그_STEP_메모만_함께_지워진다(
 
     db_session.delete(db_session.get(ExerciseStepRecord, 15))
     db_session.commit()
+    db_session.expire_all()
 
-    # 스텝 12의 메모(15번 기록)만 지워지고, 스텝 13의 메모와 DAILY(번호 없음)는 남는다.
-    assert [m.exercise_step_records_id for m in _feedback(db_session, FEEDBACK_TYPE_STEP)] == [17]
-    assert len(_feedback(db_session, FEEDBACK_TYPE_DAILY)) == 1
+    # 스텝 12의 메모(15번 기록)와 그 메모를 가리키던 연결만 지워진다.
+    # 스텝 13의 메모, 일일 리포트, 스텝 13 메모와의 연결은 남는다.
+    (memo,) = _step_memos(db_session)
+    assert memo.exercise_step_records_id == 17
+    (daily,) = _daily(db_session)
+    assert agent_feedback_repository.list_daily_feedback_sources(db_session, daily.id) == [
+        memo.id
+    ]
+
+
+def test_탈퇴_계정을_지우면_일일_리포트와_연결도_함께_지워진다(
+    db_session: Session, user: User
+) -> None:
+    from sqlalchemy import delete
+
+    from models.exercise_record import ExerciseRecord
+
+    seed_scenario(db_session, user.id, "evaluated")
+    _report(db_session, user, RECORD_DAY, SqlTeamActivityReader(db_session))
+    assert db_session.query(DailyFeedbackSource).count() == 2
+
+    # 팀 운동 테이블에는 CASCADE가 없어서 팀 기록을 먼저 지운다. 스텝 메모는 스텝 기록과 함께 지워진다.
+    db_session.execute(delete(ExerciseStepRecord).where(ExerciseStepRecord.user_id == user.id))
+    db_session.execute(delete(ExerciseRecord).where(ExerciseRecord.user_id == user.id))
+    db_session.execute(delete(User).where(User.id == user.id))
+    db_session.commit()
+
+    assert db_session.query(AgentStepFeedback).count() == 0
+    assert db_session.query(AgentDailyFeedback).count() == 0
+    assert db_session.query(DailyFeedbackSource).count() == 0

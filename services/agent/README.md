@@ -13,8 +13,8 @@
 | --- | --- | --- |
 | `api/agent/` | `daily_report.py` | `POST /api/agent/daily-report` |
 | `schemas/agent/` | `daily_report.py` | 요청·응답 형식 |
-| `models/agent/` | `agent_feedback.py` | `agent_feedback` 테이블 (에이전트의 유일한 쓰기 대상) |
-| `repositories/agent/` | `agent_feedback_repository.py` | STEP 메모·DAILY 저장과 조회 |
+| `models/agent/` | `agent_step_feedback.py`, `agent_daily_feedback.py`, `daily_feedback_source.py` | 팀 최종 ERD의 에이전트 테이블 셋 (에이전트의 쓰기 대상은 이 셋뿐) |
+| `repositories/agent/` | `agent_feedback_repository.py` | STEP 메모·DAILY 저장과 조회, DAILY가 참고한 메모 잇기 |
 | `repositories/agent/` | `team_activity_reader.py` | 팀 운동 기록 읽기 전용 (SQL / fixture) |
 | `services/agent/` | `config.py` | `AGENT_*` 환경변수, 팀 코드에서 가져온 상수(develop #15 기준), 프롬프트·규칙 로더 |
 | `services/agent/` | `report_stats.py` | 집계·후보 고르기·`is_comparable` (순수 함수) |
@@ -28,8 +28,8 @@
 
 팀 파일에서 바뀐 것은 몇 줄뿐이다: `main.py`(라우터 등록 2줄), `models/__init__.py`(모델 import),
 `requirements.txt`(`google-genai`, `anthropic`), `.env.example`·`compose.yaml`(`AGENT_*` 환경변수).
-`agent_feedback.exercise_step_records_id`는 팀의 `exercise_step_records`를 FK로 가리키므로,
-`models/agent/agent_feedback.py`가 팀 모델 3개(`exercise`, `exercise_step`, `exercise_step_record`)를
+`agent_step_feedback.exercise_step_records_id`는 팀의 `exercise_step_records`를 FK로 가리키므로,
+`models/agent/agent_step_feedback.py`가 팀 모델 3개(`exercise`, `exercise_step`, `exercise_step_record`)를
 import한다. `main.py`를 거치지 않는 `run_scenarios.py`에서도 `create_all`이 실패하지 않게 하기 위해서다.
 
 ## 두 단계
@@ -63,14 +63,32 @@ LLM은 오늘 리포트에만 부르고, 그것도 그날 마지막 리포트 �
 쓸 수 없을 때 오늘은 새로 만든다. 지난 날짜는 다시 만들지 않고 숫자만으로 쓴 문장
 (`이날 운동 3회, … 하신 기록이 있어요.`)을 돌려준다.
 
+### 저장 테이블 (팀 최종 ERD)
+
+| 테이블 | 무엇을 | 쌓는 방식 |
+| --- | --- | --- |
+| `agent_step_feedback` | STEP 메모. `exercise_step_records_id`에 그날 그 스텝의 마지막 시도 번호를 넣는다 | 다시 쓰면 새 행, 같은 스텝의 가장 최근 행이 현재 메모 |
+| `agent_daily_feedback` | DAILY 한마디 + 다음 집중 스텝 한 줄(`today_summary`), 날짜(`report_date`, KST 자정) | 다시 만들면 새 행, 그날 가장 최근 행이 그날 리포트 |
+| `daily_feedback_sources` | DAILY 한 행이 참고한 STEP 메모들 | DAILY를 저장할 때 함께 |
+
+- STEP 메모 테이블에는 날짜 컬럼이 없다. 그날 메모는 그날 팀 스텝 기록 번호로 찾는다.
+- `daily_feedback_sources`에는 LLM이 쓴 한마디만 잇는다. 대체 문장은 숫자만으로 썼으니 잇지 않는다.
+- `today_summary`는 ERD상 `VARCHAR(255)`다. 한마디와 다음 집중 스텝 줄을 합쳐 255자를 넘으면 출력 검사
+  실패로 보고 대체 문장을 쓴다. (저장하지 않는 fixture 모드도 똑같이 걸러서 두 모드가 같은 문장을 보여 준다)
+- FK는 모두 `ON DELETE CASCADE`다. ERD가 정하지 않은 부분이라 사용자 승인을 받고 뒀다. 팀의 탈퇴 삭제나
+  스텝 기록 삭제가 에이전트 테이블 때문에 막히지 않고, 지울 때 에이전트 행도 함께 지워진다.
+- 컬럼 이름·타입·NULL 여부·FK는 `tests/agent/test_agent_erd_tables.py`가 ERD와 대조한다.
+- `create_all`은 이미 있는 테이블을 고치거나 지우지 않는다. 예전 `agent_feedback` 테이블이 있는 DB에는 그
+  테이블이 그대로 남고(에이전트는 더 쓰지 않는다), 새 테이블 셋은 서버를 띄울 때 만들어진다.
+
 fixture 모드는 저장한 리포트가 없으니 이 규칙 없이 요청마다 새로 만든다.
 
 ## 경계
 
-- fixture 모드(가짜 기록)는 `agent_feedback`을 읽지도 쓰지도 않는다. 가짜 기록으로 만든 메모·리포트가
+- fixture 모드(가짜 기록)는 에이전트 테이블을 읽지도 쓰지도 않는다. 가짜 기록으로 만든 메모·리포트가
   실제 사용자 계정에 쌓이지 않게 하고, STEP 메모의 FK가 DB에 없는 가짜 기록 번호를 가리켜 MySQL이
   거부하는 일을 막는다. 그래서 fixture 모드에서는 요청마다 STEP 메모를 새로 만든다.
-- 팀 테이블은 읽기만 한다. 쓰기는 `agent_feedback` 하나뿐이다. 읽는 팀 테이블은 `exercises`,
+- 팀 테이블은 읽기만 한다. 쓰기는 에이전트 테이블 셋뿐이다. 읽는 팀 테이블은 `exercises`,
   `exercise_steps`, `exercise_records`, `exercise_step_records`, `voice_cues`다.
 - 일반 운동 점수(`exercise_records.total_score`)는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다.
   리포트는 '완료 세트 / 목표 세트'로 보여 준다. 완료 세트는 `exercise_records.completed_sets`,
@@ -179,7 +197,7 @@ ANTHROPIC_API_KEY=...
 | --- | --- |
 | 기억 쓰기와 꺼내기를 분리 | STEP(쓰기)과 DAILY(꺼내기)를 따로 둔다 |
 | 일이 생길 때 기억을 갱신 | 스텝 기록이 저장될 때 메모를 쓰고, 리포트 때 빠진 것만 따라잡는다 |
-| 원본 대화와 따로 기억을 저장 | `agent_feedback`에 따로 저장한다 |
+| 원본 대화와 따로 기억을 저장 | 에이전트 테이블(`agent_step_feedback`, `agent_daily_feedback`)에 따로 저장한다 |
 
 | 바꾼 것 | 왜 |
 | --- | --- |
@@ -196,7 +214,6 @@ ANTHROPIC_API_KEY=...
 
 아직 팀 확인을 기다리는 것:
 
-- `agent_feedback.exercise_step_records_id`의 NULL 허용 (DAILY 행은 비어야 한다. 팀 최종 ERD는 NOT NULL)
 - 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 CV 명세의 예시 6개)
 
 읽지 않는 컬럼: `exercise_records.is_completed`(develop #15에서는 `status`가 `completed`일 때만 참이라
