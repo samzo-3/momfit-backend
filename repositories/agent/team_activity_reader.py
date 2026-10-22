@@ -3,7 +3,8 @@
 팀 테이블 모양은 develop #15의 팀 모델을 따른다. 실데이터가 없는 개발 환경에서도 돌릴 수 있게
 읽는 쪽을 Protocol로 두고, SQL 리더와 fixture 리더를 함께 둔다. 두 리더는 같은 결과를 내야 한다.
 
-- 팀 테이블은 읽기만 한다. 쓰기는 agent_feedback 하나뿐이다. (agent_feedback_repository)
+- 팀 테이블은 읽기만 한다. 쓰기는 에이전트 테이블 셋(agent_step_feedback, agent_daily_feedback,
+  daily_feedback_sources)뿐이다. (agent_feedback_repository)
 - 팀 모델 클래스는 import하지 않는다. SQLAlchemy text()로 SELECT만 한다.
 - step_report에서는 판정에 쓰는 세 값과 버전 두 개만 꺼낸다. measured_metrics와
   metric_results의 수치는 읽지 않는다. (LLM에 보내지 않도록 이 경계에서 버린다)
@@ -64,7 +65,7 @@ def kst_day_of(moment: datetime) -> date:
 
 
 def report_date_of(day: date) -> datetime:
-    """agent_feedback.report_date에 저장할 값. KST 날짜의 00:00을 naive로 둔다."""
+    """agent_daily_feedback.report_date에 저장할 값. KST 날짜의 00:00을 naive로 둔다."""
     return datetime.combine(day, time.min)
 
 
@@ -366,8 +367,8 @@ def _group_daily(
 class TeamActivityReader(Protocol):
     """팀 운동 기록을 읽는 방법. SQL 리더와 fixture 리더가 같은 모양을 따른다."""
 
-    # 팀 DB의 실제 기록이면 True다. 에이전트는 실제 기록일 때만 agent_feedback을 읽고 쓴다.
-    # (가짜 기록으로 만든 메모·리포트가 실제 사용자 계정에 쌓이지 않게 하고, STEP 메모의
+    # 팀 DB의 실제 기록이면 True다. 에이전트는 실제 기록일 때만 에이전트 테이블을 읽고 쓴다.
+    # (가짜 기록으로 만든 메모·리포트가 실제 사용자 계정에 쌓이지 않게 하고, 스텝 메모의
     #  exercise_step_records_id FK가 DB에 없는 가짜 기록 번호를 가리키지 않게 한다)
     real_records: bool
 
@@ -574,7 +575,7 @@ class FixtureTeamActivityReader:
     """services/agent/fixtures/의 가짜 기록을 읽는다.
 
     fixture 모드에서는 로그인한 사용자와 상관없이 데모 기록을 쓴다. 임신 주차와 동의 같은
-    사용자 정보는 서비스가 실제 users에서 읽는다. agent_feedback은 읽지도 쓰지도 않는다.
+    사용자 정보는 서비스가 실제 users에서 읽는다. 에이전트 테이블은 읽지도 쓰지도 않는다.
     """
 
     real_records = False

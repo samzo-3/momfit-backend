@@ -1,13 +1,13 @@
 """STEP 기억 쓰기 검사. 가짜 LLM과 가짜 팀 테이블 리더를 쓴다."""
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.orm import Session
 
-from models.agent.agent_feedback import FEEDBACK_TYPE_STEP, AgentFeedback
+from models.agent.agent_step_feedback import AgentStepFeedback
 from models.exercise import Exercise
 from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_step import ExerciseStep
@@ -23,7 +23,6 @@ from services.agent import step_memory
 from services.agent.llm import LlmError, Usage
 from services.agent.step_memory import refresh_step_memories, update_step_memory
 
-DAY = date(2026, 10, 19)
 BASE = datetime(2026, 10, 19, 1, 0)  # KST 10:00
 PROFILE = "side_step_front_2d_v1"
 
@@ -194,29 +193,24 @@ def _store(db: Session, user: User, attempts: list[StepRecordRow]) -> None:
     db.flush()
 
 
-def _memos(db: Session) -> list[AgentFeedback]:
-    return (
-        db.query(AgentFeedback)
-        .filter(AgentFeedback.feedback_type == FEEDBACK_TYPE_STEP)
-        .order_by(AgentFeedback.id)
-        .all()
-    )
+def _memos(db: Session) -> list[AgentStepFeedback]:
+    return db.query(AgentStepFeedback).order_by(AgentStepFeedback.id).all()
 
 
 def _refresh(db: Session, user: User, attempts, llm, memos=None, save=True):
     from repositories.agent import agent_feedback_repository
-    from repositories.agent.team_activity_reader import report_date_of
 
     _store(db, user, attempts)
     return refresh_step_memories(
         db,
         user_id=user.id,
-        day=DAY,
         step_records=attempts,
         steps=STEPS,
         memos=memos
         if memos is not None
-        else agent_feedback_repository.list_step_memos(db, user.id, report_date_of(DAY)),
+        else agent_feedback_repository.list_step_memos(
+            db, user.id, [attempt.id for attempt in attempts]
+        ),
         llm=llm,
         save=save,
     )
@@ -235,8 +229,9 @@ def test_같은_스텝을_여러_번_시도해도_오늘_메모는_하나다(
     assert len(rows) == 1
     # 메모가 어느 시도까지 반영했는지 알려 주는 표시는 오늘 마지막 시도 번호다.
     assert rows[0].exercise_step_records_id == 5
-    assert rows[0].report_date == datetime(2026, 10, 19, 0, 0)
     assert outcome.memos[12] == "오른쪽 스텝: 5번 중 3번 양팔 벌림 부족"
+    # 일일 리포트가 이 메모를 참고했다고 daily_feedback_sources에 이을 수 있게 메모 번호도 돌려준다.
+    assert outcome.memo_ids == {12: rows[0].id}
 
 
 def test_판정_결과가_없는_스텝은_LLM을_부르지_않고_코드가_쓴다(

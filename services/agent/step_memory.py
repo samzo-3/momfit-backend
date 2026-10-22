@@ -7,19 +7,17 @@
 import json
 import logging
 import time
-from dataclasses import dataclass
-from datetime import date
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from models.agent.agent_feedback import AgentFeedback
+from models.agent.agent_step_feedback import AgentStepFeedback
 from repositories.agent import agent_feedback_repository
 from repositories.agent.team_activity_reader import (
     StepRecordRow,
     StepRow,
     build_team_activity_reader,
     kst_day_of,
-    report_date_of,
 )
 from services.agent import config, output_check
 from services.agent.llm import LlmClient, LlmError, Usage, build_llm_client
@@ -34,6 +32,8 @@ class StepMemoryOutcome:
 
     memos: dict[int, str]
     refreshed_step_ids: tuple[int, ...]
+    # memos에 든 메모의 agent_step_feedback 번호 (스텝 번호 → 메모 번호). 저장하지 않으면 비어 있다.
+    memo_ids: dict[int, int] = field(default_factory=dict)
     llm_calls: int = 0
     latency_ms: int = 0
     usage: Usage = Usage()
@@ -41,15 +41,15 @@ class StepMemoryOutcome:
 
 
 def _memo_by_step(
-    memos: list[AgentFeedback], step_records: list[StepRecordRow]
-) -> dict[int, AgentFeedback]:
+    memos: list[AgentStepFeedback], step_records: list[StepRecordRow]
+) -> dict[int, AgentStepFeedback]:
     """메모를 스텝에 붙인다.
 
-    agent_feedback에는 exercise_step_id가 없어서 exercise_step_records_id로 맞춘다.
-    같은 스텝·날짜에 STEP 행이 여럿이면 가장 최근 행만 쓴다. (memos는 최신 순으로 들어온다)
+    agent_step_feedback에는 exercise_step_id가 없어서 exercise_step_records_id로 맞춘다.
+    같은 스텝·날짜에 메모가 여럿이면 가장 최근 행만 쓴다. (memos는 최신 순으로 들어온다)
     """
     step_of_record = {record.id: record.exercise_step_id for record in step_records}
-    latest: dict[int, AgentFeedback] = {}
+    latest: dict[int, AgentStepFeedback] = {}
     for memo in memos:
         step_id = step_of_record.get(memo.exercise_step_records_id)
         if step_id is not None:
@@ -57,7 +57,9 @@ def _memo_by_step(
     return latest
 
 
-def _needs_refresh(memo: AgentFeedback | None, attempts: list[StepRecordRow]) -> bool:
+def _needs_refresh(
+    memo: AgentStepFeedback | None, attempts: list[StepRecordRow]
+) -> bool:
     """메모가 낡았는지 본다. 셋 중 하나면 갱신한다.
 
     1. 메모가 없다
@@ -121,10 +123,9 @@ def refresh_step_memories(
     db: Session,
     *,
     user_id: int,
-    day: date,
     step_records: list[StepRecordRow],
     steps: list[StepRow],
-    memos: list[AgentFeedback],
+    memos: list[AgentStepFeedback],
     llm: LlmClient,
     deadline: float | None = None,
     save: bool = True,
@@ -141,15 +142,16 @@ def refresh_step_memories(
     step_names = {row.id: row.step_name for row in steps}
     labels = config.feedback_labels()
     existing = _memo_by_step(memos, step_records)
-    report_date = report_date_of(day)
 
     current: dict[int, str] = {}
+    memo_ids: dict[int, int] = {}
     stale: list[int] = []
     for step_id, attempts in grouped.items():
         if _needs_refresh(existing.get(step_id), attempts):
             stale.append(step_id)
         else:
             current[step_id] = existing[step_id].step_summary or ""
+            memo_ids[step_id] = existing[step_id].id
 
     written: list[int] = []
     llm_steps: list[int] = []
@@ -161,9 +163,9 @@ def refresh_step_memories(
             continue
         memo = _code_memo(step_name, attempts)
         if save:
-            agent_feedback_repository.save_step_memo(
-                db, user_id, attempts[-1].id, report_date, memo
-            )
+            memo_ids[step_id] = agent_feedback_repository.save_step_memo(
+                db, user_id, attempts[-1].id, memo
+            ).id
         current[step_id] = memo
         written.append(step_id)
 
@@ -180,6 +182,7 @@ def refresh_step_memories(
                 return StepMemoryOutcome(
                     memos=current,
                     refreshed_step_ids=tuple(written),
+                    memo_ids=memo_ids,
                     failures=tuple(failures),
                 )
             timeout = min(timeout, remaining)
@@ -214,6 +217,7 @@ def refresh_step_memories(
             return StepMemoryOutcome(
                 memos=current,
                 refreshed_step_ids=tuple(written),
+                memo_ids=memo_ids,
                 llm_calls=1,
                 latency_ms=latency_ms,
                 failures=(str(error),),
@@ -224,9 +228,9 @@ def refresh_step_memories(
         failures.extend(memo_failures)
         for step_id, memo in checked.items():
             if save:
-                agent_feedback_repository.save_step_memo(
-                    db, user_id, grouped[step_id][-1].id, report_date, memo
-                )
+                memo_ids[step_id] = agent_feedback_repository.save_step_memo(
+                    db, user_id, grouped[step_id][-1].id, memo
+                ).id
             current[step_id] = memo
             written.append(step_id)
         if memo_failures:
@@ -238,6 +242,7 @@ def refresh_step_memories(
     return StepMemoryOutcome(
         memos=current,
         refreshed_step_ids=tuple(written),
+        memo_ids=memo_ids,
         llm_calls=llm_calls,
         latency_ms=latency_ms,
         usage=usage,
@@ -278,7 +283,7 @@ def update_step_memory(step_record_id: int) -> None:
         with SessionLocal() as db:
             reader = build_team_activity_reader(db)
             if not reader.real_records:
-                # 가짜 기록 모드에서는 agent_feedback을 쓰지 않는다. 실제 스텝 기록 번호가 들어와도 넘어간다.
+                # 가짜 기록 모드에서는 에이전트 테이블을 쓰지 않는다. 실제 스텝 기록 번호가 들어와도 넘어간다.
                 logger.info(
                     "가짜 기록 모드라 스텝 메모를 쓰지 않았습니다. step_record_id=%s",
                     step_record_id,
@@ -306,11 +311,10 @@ def update_step_memory(step_record_id: int) -> None:
             refresh_step_memories(
                 db,
                 user_id=owner.user_id,
-                day=day,
                 step_records=same_step,
                 steps=reader.get_steps([owner.exercise_step_id]),
                 memos=agent_feedback_repository.list_step_memos(
-                    db, owner.user_id, report_date_of(day)
+                    db, owner.user_id, [record.id for record in same_step]
                 ),
                 llm=build_llm_client(),
             )
