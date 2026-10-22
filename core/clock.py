@@ -20,3 +20,9 @@ def kst_date(utc_naive: datetime) -> date:
     """DB에 저장하는 naive UTC 시각을 Asia/Seoul 기준 날짜로 바꾼다."""
     return utc_naive.replace(tzinfo=timezone.utc).astimezone(KST).date()
 
+
+def kst_day_start_utc(day: date) -> datetime:
+    """KST 기준 day의 00:00에 해당하는 naive UTC 시각. DB의 시각 컬럼과 비교할 때 쓴다."""
+    return datetime(day.year, day.month, day.day, tzinfo=KST).astimezone(
+        timezone.utc
+    ).replace(tzinfo=None)
