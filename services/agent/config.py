@@ -32,8 +32,11 @@ SCORE_MAX = 100.0
 # exercise_records.status. in_progress / paused / completed 중 하나다.
 # (develop #15 기준: schemas/exercise_record.py, services/exercise_record_service.py)
 EXERCISE_STATUS_COMPLETED = "completed"
-# exercise_step_records.status. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
-# PASS는 80점 이상일 때만 저장된다. (develop #9 기준: schemas/exercise_step_record.py)
+# exercise_step_records의 판정 컬럼. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
+# 같은 테이블의 status는 진행 상태(in_progress / completed)로 바뀌었다.
+# PASS는 80점 이상일 때만 저장된다.
+# (develop 73d26a9 기준: models/exercise_step_record.py. PASS 기준은 develop #9의 schemas/exercise_step_record.py)
+STEP_RESULT_COLUMN = "step_result_status"
 STEP_STATUS_PASS = "PASS"
 # voice_cues.category. 자세 배우기 안내만 교정 문장으로 쓴다. TRACKING / EXERCISE / STUDY 중 하나다.
 # (develop #9 기준: schemas/voice_cue.py, repositories/voice_cue_repository.py)

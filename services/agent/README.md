@@ -48,6 +48,23 @@ BE가 스텝 기록을 저장한 직후에 한 줄만 넣으면 STEP 단계가 �
 background_tasks.add_task(update_step_memory, record.id)
 ```
 
+### 저장한 리포트 다시 쓰기
+
+LLM은 오늘 리포트에만 부르고, 그것도 그날 마지막 리포트 뒤에 기록이 바뀌었을 때만 부른다.
+그날 마지막으로 저장한 DAILY를 그대로 쓸 수 있으면 LLM 없이 돌려주고 새로 저장하지 않는다.
+숫자는 언제나 팀 테이블에서 다시 센다.
+
+저장한 DAILY를 그대로 쓰려면 둘 다 맞아야 한다.
+
+- 그날 기록이 마지막으로 바뀐 뒤에 숫자를 셌다. 팀 기록의 `modified_at`과 DAILY의 `created_at`을
+  비교한다. `created_at`은 저장 시각이 아니라 숫자를 센 시각이다.
+- 대체 문장이 아니다. 대체 문장은 '잠시 후 다시 확인해 주세요'라고 했으니 오늘은 다시 만든다.
+
+쓸 수 없을 때 오늘은 새로 만든다. 지난 날짜는 다시 만들지 않고 숫자만으로 쓴 문장
+(`이날 운동 3회, … 하신 기록이 있어요.`)을 돌려준다.
+
+fixture 모드는 저장한 리포트가 없으니 이 규칙 없이 요청마다 새로 만든다.
+
 ## 경계
 
 - fixture 모드(가짜 기록)는 `agent_feedback`을 읽지도 쓰지도 않는다. 가짜 기록으로 만든 메모·리포트가
@@ -59,7 +76,7 @@ background_tasks.add_task(update_step_memory, record.id)
   리포트는 '완료 세트 / 목표 세트'로 보여 준다. 완료 세트는 `exercise_records.completed_sets`,
   목표 세트는 팀 점수 규칙(`services/exercise_scoring_config.py`)에서 읽는다. LLM에는 일반 운동
   점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
-- 스텝 통과 횟수는 `exercise_step_records.status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
+- 스텝 통과 횟수는 `exercise_step_records.step_result_status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
   부를지는 지금처럼 `step_report`의 CV 판정과 피드백 코드로 정한다.
 - 숫자와 판정은 코드가, 문장은 LLM이 쓴다. 무엇을 기억할지와 다음 집중 스텝 후보도 코드가 정한다.
 - 원인은 CV가 감지한 피드백 코드만 말한다. 코드가 없으면 원인을 말하지 않는다.
@@ -105,12 +122,21 @@ DB에 저장하지 않고 이 파일에만 남는다)
 
 ## LLM 제공자 결정
 
-**개발: Gemini 무료 등급 (`gemini-3.8-flash`)**
-무료 등급은 요금이 들지 않는 대신 입력·출력이 구글 제품 개선에 쓰일 수 있다. 그래서 개발 중에는
-`services/agent/fixtures/`의 가짜 데이터만 넣는다. 실제 사용자 기록은 넣지 않는다.
-(유료 등급은 제품 개선에 쓰지 않는다고 적혀 있다.)
+**개발과 운영 모두 Claude API (`claude-haiku-5-5`)**
 
-**실제 사용자 데이터가 들어가기 전: Claude API (`claude-haiku-5-5`)**
+처음에는 개발을 Gemini 무료 등급으로 하고, 실제 사용자 데이터가 들어가기 전에 Claude로 바꿀 계획이었다.
+2026-10-21~22에 둘을 가짜 기록 시나리오(`run_scenarios`)로 돌려 보고 개발도 Claude로 바꿨다.
+
+| 항목 | Gemini 무료 등급 (2026-10-21) | Claude Haiku 5.5 (2026-10-22) |
+| --- | --- | --- |
+| 모델 / 프롬프트 | `gemini-3.8-flash`·`gemini-3.5-flash` / daily-v2 | `claude-haiku-5-5` / daily-v3 |
+| LLM을 부르는 시나리오 4개 중 정상 | 실행 3번에서 0개, 2개, 3개 (나머지는 시간 초과·오류로 대체 문장) | 4개 모두 |
+| 응답 시간 | 호출 하나에 11~15초 (호출 제한 10초를 자주 넘김) | 리포트 하나(호출 1~2번)에 3.4~8.3초 |
+| 호출 한도 | 모델마다 하루 20번 | 분당 한도 안에서 충전한 크레딧만큼 |
+| 리포트 한 건 비용 | 무료 | $0.00055~0.0012 (약 1원) |
+
+문장 품질은 프롬프트 버전이 달라 두 모델을 직접 비교하지 않았다. daily-v3로 돌린 Claude 결과는
+숫자가 모두 맞았고, 2~3문장·해요체·인용 규칙을 지켰다.
 
 | 항목 | 값 |
 | --- | --- |
@@ -120,20 +146,26 @@ DB에 저장하지 않고 이 파일에만 남는다)
 | 캐시 히트 (10만 토큰 이하) | $0.01 per MTok |
 | 컨텍스트 / 최대 출력 | 1M / 128K 토큰 |
 
-바꾸는 이유는 세 가지다.
+Claude를 쓰는 이유는 네 가지다.
 
-1. **데이터**: 상용 API로 보낸 입력·출력은 별도 합의가 없으면 모델 학습에 쓰지 않는다.
-2. **단가**: 리포트 한 건은 입력 수천 토큰, 출력 수백 토큰이라 Haiku 5.5면 건당 1원이 안 된다.
-3. **이전 경로**: 나중에 AWS Bedrock으로 옮길 수 있다. (Bedrock ID `anthropic.claude-haiku-5-5`)
+1. **속도와 안정성**: 리포트 전체 제한 시간(25초) 안에 여유 있게 끝난다. Gemini는 시간 초과로 대체 문장이 자주 나왔다.
+2. **데이터**: 상용 API로 보낸 입력·출력은 별도 합의가 없으면 모델 학습에 쓰지 않는다. Gemini 무료 등급은
+   입력·출력이 구글 제품 개선에 쓰일 수 있다. (유료 등급은 제품 개선에 쓰지 않는다고 적혀 있다.)
+3. **단가**: 실측으로 리포트 한 건은 입력 약 2,400~4,100 토큰, 출력 약 470~1,650 토큰(생각 토큰 포함)이다.
+   Haiku 5.5면 건당 1원 안팎이다. 출력 토큰은 생각한 양에 따라 시나리오마다 차이가 크다.
+4. **이전 경로**: 나중에 AWS Bedrock으로 옮길 수 있다. (Bedrock ID `anthropic.claude-haiku-5-5`)
 
-전환은 `.env`만 바꾸면 된다.
+Gemini 제공자는 남겨 둔다. 키를 결제 없이 받아 무료로 비교해 볼 때 쓰고, 이때도 가짜 데이터만 넣는다.
+운영(`AGENT_APP_ENV=prod`)에서는 `AGENT_PROD_PROVIDERS`(기본 `anthropic`)에 없어서 쓸 수 없다.
+
+Claude로 돌리려면 환경변수 두 개를 바꾼다. (`compose.yaml`은 `.env`에서 읽는다)
 
 ```env
 AGENT_LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=...
 ```
 
-> 확인일 2026-10-21. 출처:
+> 단가 확인일 2026-10-21, 실측 2026-10-21~22. 출처:
 > [모델 개요](https://platform.claude.com/docs/en/models/overview),
 > [단가](https://platform.claude.com/docs/en/about-claude/pricing),
 > [학습 데이터 사용 여부](https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training),
@@ -158,7 +190,8 @@ ANTHROPIC_API_KEY=...
 
 ## 팀 코드에서 가져온 값과 팀 확인 대기
 
-컬럼 이름, `status`·`category` 값, 점수 범위, 목표 세트는 develop #15의 팀 모델·스키마·점수 규칙에 맞췄다. `config.py`
+컬럼 이름, `status`·`category` 값, 점수 범위, 목표 세트는 develop #15의 팀 모델·스키마·점수 규칙에 맞췄다.
+스텝 판정 컬럼은 develop 73d26a9에서 `status`에서 `step_result_status`로 옮겨졌다. `config.py`
 위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
 아직 팀 확인을 기다리는 것:

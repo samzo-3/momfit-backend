@@ -10,13 +10,16 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
+from core.clock import today_kst, utc_now
 from models.user import User
 from repositories.agent import agent_feedback_repository
 from repositories.agent.team_activity_reader import (
+    ExerciseRecordRow,
+    StepRecordRow,
     TeamActivityReader,
     report_date_of,
 )
@@ -27,6 +30,7 @@ from services.agent.output_check import (
     REASON_NO_CONSENT,
     REASON_NO_RECORDS,
     REASON_OUTPUT_CHECK,
+    REASON_PAST_DAY,
     REASON_RATE_LIMIT,
     REASON_TIMEOUT,
     NextFocus,
@@ -37,6 +41,10 @@ from services.agent.step_memory import refresh_step_memories
 logger = logging.getLogger(__name__)
 
 EMPTY_SUMMARY = "오늘은 아직 운동 기록이 없어요. 기록이 생기면 리포트를 만들어 드릴게요."
+PAST_EMPTY_SUMMARY = "이날은 운동 기록이 없어요."
+# 저장하는 today_summary에서 한마디 뒤에 붙는 다음 집중 스텝 줄의 모양
+FOCUS_LINE = "\n다음 집중 스텝: "
+FOCUS_REASON_SEPARATOR = " — "
 
 
 @dataclass(frozen=True)
@@ -63,17 +71,27 @@ class DailyReportResult:
     output_tokens: int | None = None
 
 
-def _fallback_summary(stats: ReportStats) -> str:
-    """stats 숫자만으로 코드가 쓰는 대체 문장. 원인도 판정도 말하지 않는다."""
+def _count_sentence(stats: ReportStats, when: str) -> str:
+    """stats 숫자만으로 쓰는 기록 문장. when은 '오늘' 또는 '이날'이다."""
     parts = []
     if stats.record_count:
         parts.append(f"운동 {stats.record_count}회")
     if stats.step_attempt_count:
         parts.append(f"자세 배우기 {stats.step_attempt_count}번")
-    text = f"오늘 {', '.join(parts)} 하신 기록이 있어요." if parts else "오늘 기록이 있어요."
+    text = f"{when} {', '.join(parts)} 하신 기록이 있어요." if parts else f"{when} 기록이 있어요."
     if stats.total_minutes:
         text += f" 운동 시간은 모두 {stats.total_minutes}분이에요."
-    return text + " 자세한 안내는 잠시 후 다시 확인해 주세요."
+    return text
+
+
+def _fallback_summary(stats: ReportStats) -> str:
+    """stats 숫자만으로 코드가 쓰는 대체 문장. 원인도 판정도 말하지 않는다."""
+    return _count_sentence(stats, "오늘") + " 자세한 안내는 잠시 후 다시 확인해 주세요."
+
+
+def _past_summary(stats: ReportStats) -> str:
+    """지난 날짜에 쓸 수 있는 리포트가 없을 때의 문장. 다시 만들지 않으니 '잠시 후'라고 하지 않는다."""
+    return _count_sentence(stats, "이날")
 
 
 def _stats_for_llm(stats: ReportStats) -> dict:
@@ -166,7 +184,68 @@ def _today_summary_row(
     if next_focus is None:
         return summary
     name = step_name or f"스텝 {next_focus.step_id}"
-    return f"{summary}\n다음 집중 스텝: {name} — {next_focus.reason}"
+    return f"{summary}{FOCUS_LINE}{name}{FOCUS_REASON_SEPARATOR}{next_focus.reason}"
+
+
+def _split_saved_row(text: str, stats: ReportStats) -> tuple[str, NextFocus | None]:
+    """저장한 today_summary를 한마디와 다음 집중 스텝으로 되돌린다. _today_summary_row의 반대다.
+
+    저장할 때 스텝 번호 대신 이름을 적었으므로, 그날 스텝 중 이름이 같은 것의 번호를 찾는다.
+    못 찾으면 한마디만 돌려준다.
+    """
+    summary, found, focus_line = text.rpartition(FOCUS_LINE)
+    if not found:
+        return text, None
+    name, _, reason = focus_line.partition(FOCUS_REASON_SEPARATOR)
+    step_ids = {step.step_name: step.exercise_step_id for step in stats.steps}
+    if name not in step_ids or not reason:
+        return summary, None
+    return summary, NextFocus(step_id=step_ids[name], reason=reason)
+
+
+def _last_touch(
+    records: list[ExerciseRecordRow], step_records: list[StepRecordRow]
+) -> datetime:
+    """그날 기록이 마지막으로 바뀐 시각. 기록이 하나 이상 있을 때만 부른다."""
+    return max(
+        row.modified_at or row.created_at for row in [*records, *step_records]
+    )
+
+
+def _saved_report(
+    db: Session,
+    user_id: int,
+    day: date,
+    stats: ReportStats,
+    notice: str,
+    last_touch: datetime,
+) -> DailyReportResult | None:
+    """그날 마지막으로 저장한 리포트를 그대로 쓸 수 있으면 돌려준다. 쓸 수 없으면 None이다.
+
+    그대로 쓰려면 둘 다 맞아야 한다.
+    1. 그날 기록이 마지막으로 바뀐 뒤에 숫자를 셌다 (아니면 한마디와 다시 센 숫자가 어긋난다)
+    2. 대체 문장이 아니다 (대체 문장은 '잠시 후 다시 확인해 주세요'라고 했다. 오늘은 다시 만들어야
+       그 말이 맞고, 다시 만들지 않는 지난 날짜에서는 그 말을 지킬 수 없다)
+    """
+    row = agent_feedback_repository.latest_daily_report(
+        db, user_id, report_date_of(day)
+    )
+    if (
+        row is None
+        or not row.today_summary
+        # 리포트 시각은 숫자를 센 시각이다. 둘 다 팀 규칙대로 naive UTC라 그대로 비교한다.
+        or row.created_at < last_touch
+        or row.today_summary == _fallback_summary(stats)
+    ):
+        return None
+    summary, next_focus = _split_saved_row(row.today_summary, stats)
+    return DailyReportResult(
+        date=day,
+        stats=stats,
+        safety_notice=notice,
+        summary=summary,
+        next_focus=next_focus,
+    )
 
 
 def build_daily_report(
@@ -175,17 +254,25 @@ def build_daily_report(
     day: date,
     reader: TeamActivityReader,
     llm: LlmClient,
+    today: date | None = None,
 ) -> DailyReportResult:
     """하루 리포트를 만든다. 실패해도 예외를 내지 않고 대체 문장으로 돌려준다.
 
+    LLM은 오늘 리포트에만, 그것도 그날 마지막 리포트 뒤에 기록이 바뀌었을 때만 부른다.
+    지난 날짜는 다시 만들지 않고 그날 만든 리포트를 그대로 돌려준다.
     가짜 기록(reader.real_records가 False)이면 agent_feedback을 읽지도 쓰지도 않는다.
+    저장한 리포트가 없으니 날짜와 상관없이 그날을 오늘로 보고 매번 새로 만든다.
     """
     deadline = time.monotonic() + config.report_timeout_seconds()
     save = reader.real_records
+    past = save and day < (today or today_kst())
     notice = config.safety_notice()
     report_date = report_date_of(day)
 
     # 1. 오늘 기록 집계
+    #    저장하는 리포트의 시각은 숫자를 세기 직전 시각이다. LLM을 기다리는 사이 바뀐 기록은
+    #    이 시각보다 늦게 바뀌므로, 다음 요청에서 그 리포트가 낡았다고 알 수 있다.
+    read_at = utc_now()
     records = reader.list_exercise_records(user.id, day)
     step_records = reader.list_step_records(user.id, day)
     steps = reader.get_steps(sorted({r.exercise_step_id for r in step_records}))
@@ -206,9 +293,26 @@ def build_daily_report(
             date=day,
             stats=stats,
             safety_notice=notice,
-            summary=EMPTY_SUMMARY,
+            summary=PAST_EMPTY_SUMMARY if past else EMPTY_SUMMARY,
             fallback_reason=REASON_NO_RECORDS,
         )
+
+    # 3. 그날 저장한 리포트가 아직 맞으면 LLM 없이 그대로 돌려주고 새로 저장하지 않는다.
+    #    지난 날짜는 다시 만들지 않으니, 쓸 수 없으면 숫자만으로 쓴 문장을 돌려준다.
+    if save:
+        saved = _saved_report(
+            db, user.id, day, stats, notice, _last_touch(records, step_records)
+        )
+        if saved is not None:
+            return saved
+        if past:
+            return DailyReportResult(
+                date=day,
+                stats=stats,
+                safety_notice=notice,
+                summary=_past_summary(stats),
+                fallback_reason=REASON_PAST_DAY,
+            )
 
     labels = config.feedback_labels()
     grouped = report_stats.group_step_attempts(step_records)
@@ -228,7 +332,7 @@ def build_daily_report(
     candidate_ids = tuple(item.exercise_step_id for item in candidates)
     step_names = {item.exercise_step_id: item.step_name for item in candidates}
 
-    # 3. 민감 건강정보 동의가 없으면 LLM 없이 대체 문장을 쓴다.
+    # 4. 민감 건강정보 동의가 없으면 LLM 없이 대체 문장을 쓴다.
     #    (가입·온보딩에서 필수 동의라 보통은 걸리지 않는 방어 장치다)
     if user.health_data_agreed_at is None:
         summary = _fallback_summary(stats)
@@ -238,7 +342,9 @@ def build_daily_report(
             REASON_NO_CONSENT,
         )
         if save:
-            agent_feedback_repository.save_daily_report(db, user.id, report_date, summary)
+            agent_feedback_repository.save_daily_report(
+                db, user.id, report_date, summary, created_at=read_at
+            )
             db.commit()
         return DailyReportResult(
             date=day,
@@ -249,7 +355,7 @@ def build_daily_report(
             saved=save,
         )
 
-    # 4. STEP 따라잡기: 메모가 낡은 스텝만 다시 쓴다. 이미 최신이면 LLM을 부르지 않는다.
+    # 5. STEP 따라잡기: 메모가 낡은 스텝만 다시 쓴다. 이미 최신이면 LLM을 부르지 않는다.
     outcome = refresh_step_memories(
         db,
         user_id=user.id,
@@ -273,7 +379,7 @@ def build_daily_report(
         config.load_prompt("step_memory_system").version if outcome.llm_calls else None
     )
 
-    # 5. DAILY 기억 꺼내기
+    # 6. DAILY 기억 꺼내기
     feedback_code_counts: dict[str, int] = {}
     for summary_row in stats.steps:
         for code, count in summary_row.feedback_code_counts.items():
@@ -319,7 +425,7 @@ def build_daily_report(
                 reason = REASON_LLM_ERROR
             detail = str(error)
         else:
-            # 6. 출력 검사
+            # 7. 출력 검사
             checked = output_check.check_daily(text, candidate_ids)
             if isinstance(checked, output_check.CheckFailure):
                 reason = REASON_OUTPUT_CHECK
@@ -340,7 +446,7 @@ def build_daily_report(
             detail,
         )
 
-    # 7. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 DAILY로 저장한다.
+    # 8. 화면에 보여 준 한마디와 다음 집중 스텝 한 줄을 합쳐 DAILY로 저장한다.
     if save:
         focus_step_name = step_names.get(next_focus.step_id) if next_focus else None
         agent_feedback_repository.save_daily_report(
@@ -348,6 +454,7 @@ def build_daily_report(
             user.id,
             report_date,
             _today_summary_row(summary, next_focus, focus_step_name),
+            created_at=read_at,
         )
         db.commit()
 
