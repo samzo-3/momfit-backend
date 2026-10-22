@@ -26,11 +26,11 @@ RUNS_DIR = AGENT_DIR / "runs"
 STEP_REPORT_COLUMN = "step_report"
 # 점수 범위. 이 범위를 벗어난 값은 집계에서 버린다.
 # (develop #9 기준: schemas/exercise_step_record.py의 step_score 0~100,
-#  services/exercise_record_score.py의 total_score 100점 상한)
+#  #20에서 옮겨진 services/pose_coaching/exercise_record_score.py의 total_score 100점 상한)
 SCORE_MIN = 0.0
 SCORE_MAX = 100.0
 # exercise_records.status. in_progress / paused / completed 중 하나다.
-# (develop #15 기준: schemas/exercise_record.py, services/exercise_record_service.py)
+# (develop #15 기준, #20에서 옮겨짐: schemas/exercise_record.py, services/pose_coaching/exercise_record_service.py)
 EXERCISE_STATUS_COMPLETED = "completed"
 # exercise_step_records의 판정 컬럼. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
 # 같은 테이블의 status는 진행 상태(in_progress / completed)로 바뀌었다.
