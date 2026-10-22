@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
+from models.admin_audit_log import AdminAuditLog
 from models.auth_identity import AuthIdentity
 from models.daily_visit import DailyVisit
 from models.email_verification import EmailVerification
@@ -24,6 +25,9 @@ BIGINT_COLUMNS = [
     (ExerciseRecord, "user_id"),
     (ExerciseStepRecord, "user_id"),
     (DailyVisit, "user_id"),
+    (AdminAuditLog, "id"),
+    (AdminAuditLog, "admin_id"),
+    (AdminAuditLog, "target_user_id"),
 ]
 
 

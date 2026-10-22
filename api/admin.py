@@ -10,13 +10,17 @@ from db.session import get_db
 from models.user import User
 from schemas.admin import (
     ExerciseStatsResponse,
+    MemberDetail,
+    MemberListResponse,
+    MemberStatus,
     Period,
     SummaryResponse,
     UserStatsResponse,
     VisitStatsResponse,
 )
 from schemas.user import UserResponse
-from services.admin import stats_service
+from services.admin import member_service, stats_service
+from services.auth.kakao_client import KakaoClient, get_kakao_client
 from services.user.user_service import to_user_response
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -70,3 +74,47 @@ def read_visit_stats(
 ) -> VisitStatsResponse:
     """구간별 방문자 수(일별=DAU, 주별=WAU, 월별=MAU)와 오늘 기준 DAU·WAU·MAU. 생략하면 최근 30일이다."""
     return stats_service.visit_stats(db, period, start, end)
+
+
+@router.get("/members", response_model=MemberListResponse)
+def list_members(
+    q: str | None = Query(default=None, max_length=100, description="닉네임·이메일·아이디 검색"),
+    status: MemberStatus | None = None,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=member_service.MAX_PAGE_SIZE),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> MemberListResponse:
+    """일반 회원 목록. 가입 최신 순이다."""
+    return member_service.list_members(db, q, status, page, size)
+
+
+@router.get("/members/{user_id}", response_model=MemberDetail)
+def read_member(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> MemberDetail:
+    """회원 상세. 조회할 때마다 이력이 남는다."""
+    return member_service.get_member_detail(db, admin, user_id)
+
+
+@router.post("/members/{user_id}/withdraw", response_model=MemberDetail)
+def withdraw_member(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    kakao_client: KakaoClient = Depends(get_kakao_client),
+) -> MemberDetail:
+    """회원을 강제 탈퇴(유예) 처리한다. 유예 기간 안에는 복구할 수 있다."""
+    return member_service.withdraw_member(db, admin, user_id, kakao_client)
+
+
+@router.post("/members/{user_id}/restore", response_model=MemberDetail)
+def restore_member(
+    user_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> MemberDetail:
+    """탈퇴 유예 중인 회원을 복구한다."""
+    return member_service.restore_member(db, admin, user_id)

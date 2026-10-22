@@ -1,6 +1,6 @@
 """관리자 통계 응답 스키마. 개인 정보 없이 집계값만 담는다."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -64,6 +64,58 @@ class UserStatsResponse(BaseModel):
     total_signups: int
     total_withdrawals: int
     series: list[UserPoint]
+
+
+MemberStatus = Literal["active", "withdrawn"]
+
+
+class MemberListItem(BaseModel):
+    """회원 목록의 한 행."""
+
+    id: int
+    nickname: str
+    email: str | None
+    login_id: str | None
+    provider: Literal["local", "kakao"]
+    status: MemberStatus
+    created_at: datetime
+    withdrawn_at: datetime | None
+    purge_at: datetime | None
+    last_visit_date: date | None
+    completed_exercises: int
+
+
+class MemberListResponse(BaseModel):
+    items: list[MemberListItem]
+    total: int
+    page: int
+    size: int
+
+
+class MemberRecord(BaseModel):
+    started_at: datetime
+    exercise_name: str
+    is_completed: bool
+    total_score: float | None
+
+
+class MemberHistory(BaseModel):
+    """회원에 대한 관리자 조회·조치 이력의 한 줄."""
+
+    action: Literal["view_member", "withdraw_member", "restore_member"]
+    admin_nickname: str
+    created_at: datetime
+
+
+class MemberDetail(MemberListItem):
+    """회원 상세. 온보딩·건강 관련 값은 관리자가 조회할 때마다 이력이 남는다."""
+
+    onboarding_completed: bool
+    exercise_level: Literal["low", "medium", "high"] | None
+    due_date: date | None
+    visit_days_last_30: int
+    recent_records: list[MemberRecord]
+    history: list[MemberHistory]
 
 
 class VisitPoint(BaseModel):
