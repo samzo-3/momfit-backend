@@ -131,7 +131,7 @@ class MockLlm:
 
 
 class GeminiLlm:
-    """google-genai. 개발용이다.
+    """google-genai. 무료 등급으로 비교해 볼 때 쓴다.
 
     무료 등급은 입력·출력이 구글 제품 개선에 쓰일 수 있어 가짜 데이터만 넣는다.
     (README의 'LLM 제공자 결정' 참고)
@@ -190,7 +190,7 @@ class GeminiLlm:
 
 
 class AnthropicLlm:
-    """Claude API. 실제 사용자 데이터가 들어가기 전에 이쪽으로 전환한다."""
+    """Claude API. 개발과 운영 모두 이 제공자를 쓴다. (README의 'LLM 제공자 결정' 참고)"""
 
     name = PROVIDER_ANTHROPIC
 
