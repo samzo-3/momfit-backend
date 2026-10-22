@@ -92,7 +92,7 @@ fixture 모드는 저장한 리포트가 없으니 이 규칙 없이 요청마�
   `exercise_steps`, `exercise_records`, `exercise_step_records`, `voice_cues`다.
 - 일반 운동 점수(`exercise_records.total_score`)는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다.
   리포트는 '완료 세트 / 목표 세트'로 보여 준다. 완료 세트는 `exercise_records.completed_sets`,
-  목표 세트는 팀 점수 규칙(`services/exercise_scoring_config.py`)에서 읽는다. LLM에는 일반 운동
+  목표 세트는 팀 점수 규칙(`services/pose_coaching/exercise_scoring_config.py`)에서 읽는다. LLM에는 일반 운동
   점수를 자세 평가처럼 말하지 말라고 한다. (`prompts/daily_system.md`)
 - 스텝 통과 횟수는 `exercise_step_records.step_result_status`(PASS, 80점 이상)로 센다. STEP 메모에 LLM을
   부를지는 지금처럼 `step_report`의 CV 판정과 피드백 코드로 정한다.
@@ -212,9 +212,18 @@ ANTHROPIC_API_KEY=...
 스텝 판정 컬럼은 develop 73d26a9에서 `status`에서 `step_result_status`로 옮겨졌다. `config.py`
 위쪽 블록에 출처와 함께 모아 두었고, 팀 코드가 바뀌면 그 블록만 고친다.
 
+`step_report`는 FE 자세 배우기 화면(momfit-frontend #13의 `saveSideKickStep.ts`)이 만든다. FE는 CV 명세와
+이름이 다른 값을 쓴다. 판정은 `NON_PASS`(명세는 `FAIL`), 추적 상태는 `TRACKING_OK`(명세는 `VALID`)다.
+그래서 읽는 경계(`team_activity_reader.py`)에서 명세 이름으로 바꾼다. FE는 음성 안내를 할 때마다 피드백 코드를
+쌓아 한 시도에 같은 코드가 여러 번 들어 있으므로, 시도 하나에서는 한 번만 센다. FE는 점수가 한 번이라도
+매겨진 스텝만 저장해서, 측정 불가(카메라 위치 안내) 시도는 지금 FE에서 오지 않는다.
+
 아직 팀 확인을 기다리는 것:
 
-- 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 CV 명세의 예시 6개)
+- 피드백 이벤트 코드 목록 (`rules/feedback_codes.json`은 FE #13 채점 코드 13개와 CV 명세의
+  `TRACKING_UNAVAILABLE`이다. 팀 공통 목록이 따로 정해지면 맞춘다)
+- 교정 문장으로 쓰는 `voice_cues` 행 (FE는 음성 목록 파일을 직접 읽고 DB `voice_cues`는 비어 있다.
+  행이 없으면 리포트는 교정 문장 없이 상태 설명만 쓴다)
 
 읽지 않는 컬럼: `exercise_records.is_completed`(develop #15에서는 `status`가 `completed`일 때만 참이라
 `status`와 같은 뜻이다. 완료 수는 `status` 하나로만 센다), `user_goal`(의미 미확정).

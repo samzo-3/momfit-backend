@@ -1,12 +1,20 @@
 {
-  "note": "CV 팀 'JSON 스키마 명세서' 11.4절의 피드백 이벤트 코드와 설명이다. 설명은 '무엇이 부족했나'(상태 설명)이며, '어떻게 고치나'(교정 방법)는 넣지 않는다. 교정 방법은 팀이 검토한 voice_cues.message에서만 가져온다.",
-  "source": "CV 팀 JSON 스키마 명세서 11.4 (2026-10-20 수정본, 설계 예시 단계). 목록이 확정되면 교체한다.",
+  "note": "자세 배우기 피드백 코드와 상태 설명이다. 설명은 '무엇이 부족했나'(상태 설명)이며, '어떻게 고치나'(교정 방법)는 넣지 않는다. 교정 방법은 팀이 검토한 voice_cues.message에서만 가져온다. 설명은 FE 채점 코드가 그 코드를 내는 조건을 옮긴 것이다. 복귀 코드 5개(*_RETURN_ADJUST, RETURN_POSTURE_ADJUST)는 FE가 STEP 3·5를 준비 자세 기준으로 채점해서 지금은 나오지 않지만, 그 분기가 살아나면 바로 쓰도록 함께 둔다. TRACKING_UNAVAILABLE은 CV 명세 11.4절의 관절 인식 불가 코드다.",
+  "source": "momfit-frontend develop #13 (e45052d): src/features/pose/analyzers/sideKick/side-kick-study-score.ts의 eventCode, src/features/pose/components/SideKickStudyScreen.tsx가 VOICE_CUE 코드를 step_report.evaluation_result.feedback_codes에 넣는다. TRACKING_UNAVAILABLE은 CV 팀 JSON 스키마 명세서 11.4.",
   "codes": {
-    "RIGHT_ARM_TOO_LOW": "오른팔 높이 부족",
-    "LEFT_ARM_TOO_LOW": "왼팔 높이 부족",
-    "ARMS_NOT_OPEN_ENOUGH": "양팔 벌림 부족",
-    "RIGHT_STEP_TOO_SHORT": "오른쪽 스텝 이동량 부족",
-    "LEFT_STEP_TOO_SHORT": "왼쪽 스텝 이동량 부족",
+    "READY_POSITION_ADJUST": "준비 자세 어긋남",
+    "LEFT_LEG_HEIGHT_ADJUST": "왼쪽 다리 들어 올림 부족",
+    "RIGHT_LEG_HEIGHT_ADJUST": "오른쪽 다리 들어 올림 부족",
+    "LEFT_LEG_POSITION_ADJUST": "왼쪽 다리 옆으로 벌림 부족",
+    "RIGHT_LEG_POSITION_ADJUST": "오른쪽 다리 옆으로 벌림 부족",
+    "LEFT_KNEE_POSITION_ADJUST": "왼쪽 무릎 펴짐 부족",
+    "RIGHT_KNEE_POSITION_ADJUST": "오른쪽 무릎 펴짐 부족",
+    "POSTURE_ADJUST": "자세 점수 기준 미달",
+    "LEFT_LEG_RETURN_ADJUST": "왼쪽 다리 복귀 위치 어긋남",
+    "RIGHT_LEG_RETURN_ADJUST": "오른쪽 다리 복귀 위치 어긋남",
+    "TORSO_RETURN_ADJUST": "몸통 복귀 각도 어긋남",
+    "ELBOW_RETURN_ADJUST": "팔꿈치 복귀 위치 어긋남",
+    "RETURN_POSTURE_ADJUST": "복귀 자세 점수 기준 미달",
     "TRACKING_UNAVAILABLE": "관절 인식 불가"
   },
   "tracking_unavailable_code": "TRACKING_UNAVAILABLE"

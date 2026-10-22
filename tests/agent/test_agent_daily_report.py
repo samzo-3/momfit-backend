@@ -190,7 +190,7 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     assert len(_step_rows(db_session)) == 2
     daily = _daily_rows(db_session)
     assert len(daily) == 1
-    assert "다음 집중 스텝: 오른쪽 스텝" in daily[0].today_summary
+    assert "다음 집중 스텝: 왼쪽 다리 들기" in daily[0].today_summary
     assert db_session.query(DailyFeedbackSource).count() == 2
 
 
@@ -305,7 +305,8 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
 def _daily_with_row_length(length: int) -> str:
     """저장할 today_summary(한마디 + 다음 집중 스텝 줄)가 정확히 length자가 되는 DAILY 답."""
     reason = "이 스텝에 신경 써 봐요."
-    focus_line = f"{daily_report_service.FOCUS_LINE}오른쪽 스텝{daily_report_service.FOCUS_REASON_SEPARATOR}{reason}"
+    # 스텝 12의 이름은 fixtures/catalog.json의 '왼쪽 다리 들기'다.
+    focus_line = f"{daily_report_service.FOCUS_LINE}왼쪽 다리 들기{daily_report_service.FOCUS_REASON_SEPARATOR}{reason}"
     head = "오늘도 꾸준히 해 주셨어요."
     summary = head + "요" * (length - len(focus_line) - len(head))
     return json.dumps(
