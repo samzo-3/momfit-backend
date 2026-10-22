@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 import models  # noqa: F401  (create_all이 모든 모델을 알 수 있도록 import)
 from api.agent.daily_report import router as agent_router
@@ -68,3 +69,11 @@ app.include_router(voice_cues_router)
 app.include_router(exercise_step_records_router)
 app.include_router(exercise_records_router)
 app.include_router(sidekick_study_router)
+# Prometheus Metrics
+Instrumentator(
+    excluded_handlers=[r"^/metrics$"],
+).instrument(app).expose(
+    app,
+    endpoint="/metrics",
+    include_in_schema=False,
+)
