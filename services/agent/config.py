@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from services.exercise_scoring_config import get_scoring_rule
+from services.pose_coaching.exercise_scoring_config import get_scoring_rule
 
 AGENT_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = AGENT_DIR / "prompts"

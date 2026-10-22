@@ -1,7 +1,7 @@
 """음성 코칭 Service의 범위별 우선순위 테스트."""
 
 from models.voice_cue import VoiceCue
-from services.voice_cue_service import select_preferred_cues
+from services.pose_coaching.voice_cue_service import select_preferred_cues
 
 
 def make_cue(
