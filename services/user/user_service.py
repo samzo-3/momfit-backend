@@ -24,6 +24,7 @@ def to_user_response(user: User, today: date | None = None) -> UserResponse:
         pregnancy_week=calculate_pregnancy_week(user.due_date, today or today_kst()),
         exercise_level=user.exercise_level,
         onboarding_completed=user.onboarding_completed,
+        role=user.role
     )
 
 

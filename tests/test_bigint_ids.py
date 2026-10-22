@@ -5,6 +5,7 @@ from sqlalchemy.dialects import mysql
 from sqlalchemy.schema import CreateTable
 
 from models.auth_identity import AuthIdentity
+from models.daily_visit import DailyVisit
 from models.email_verification import EmailVerification
 from models.exercise_record import ExerciseRecord
 from models.exercise_step_record import ExerciseStepRecord
@@ -22,6 +23,7 @@ BIGINT_COLUMNS = [
     (UserGoal, "user_id"),
     (ExerciseRecord, "user_id"),
     (ExerciseStepRecord, "user_id"),
+    (DailyVisit, "user_id"),
 ]
 
 

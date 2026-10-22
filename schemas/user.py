@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     pregnancy_week: int | None
     exercise_level: Literal["low", "medium", "high"] | None
     onboarding_completed: bool
+    role: Literal["user", "admin"]
 
 
 class UpdateProfileRequest(BaseModel):

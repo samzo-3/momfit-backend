@@ -14,3 +14,9 @@ def utc_now() -> datetime:
 def today_kst() -> date:
     """Asia/Seoul 기준 오늘 날짜를 반환한다."""
     return datetime.now(KST).date()
+
+
+def kst_date(utc_naive: datetime) -> date:
+    """DB에 저장하는 naive UTC 시각을 Asia/Seoul 기준 날짜로 바꾼다."""
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone(KST).date()
+

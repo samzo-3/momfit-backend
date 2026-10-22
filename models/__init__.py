@@ -4,6 +4,7 @@ from models.agent.agent_daily_feedback import AgentDailyFeedback
 from models.agent.agent_step_feedback import AgentStepFeedback
 from models.agent.daily_feedback_source import DailyFeedbackSource
 from models.auth_identity import AuthIdentity
+from models.daily_visit import DailyVisit
 from models.email_verification import EmailVerification
 from models.exercise import (
     Exercise,
@@ -22,6 +23,7 @@ __all__ = [
     "AgentStepFeedback",
     "AuthIdentity",
     "DailyFeedbackSource",
+    "DailyVisit",
     "EmailVerification",
     "Exercise",
     "ExerciseCriteriaVersion",
