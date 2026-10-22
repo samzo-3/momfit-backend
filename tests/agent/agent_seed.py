@@ -75,7 +75,10 @@ def seed_scenario(db: Session, user_id: int, scenario: str) -> None:
         (ExerciseStep, catalog["exercise_steps"]),
         (VoiceCue, catalog["voice_cues"]),
     ):
-        db.add_all(model(**_values(item)) for item in items)
+        values = (_values(item) for item in items)
+        if model is ExerciseStep:
+            values = ({**item, "important": item.get("important", False)} for item in values)
+        db.add_all(model(**item) for item in values)
         db.flush()
 
     db.add_all(ExerciseRecord(**_values(item, user_id)) for item in rows["exercise_records"])
@@ -93,6 +96,7 @@ def seed_scenario(db: Session, user_id: int, scenario: str) -> None:
             values["exercise_criteria_version_id"] = _criteria_version_id(
                 values["exercise_id"], catalog, rows
             )
+        values.setdefault("step_session_id", "00000000-0000-0000-0000-000000000001")
 
         step_records.append(ExerciseStepRecord(**values))
 
