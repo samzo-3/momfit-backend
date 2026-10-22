@@ -108,21 +108,23 @@ def test_DB_모드_리포트의_숫자가_맞다(db_session: Session, user: User
         SetProgress(completed_sets=8, target_sets=10),
     )
     assert stats.step_attempt_count == 7
-    right, left = stats.steps
-    assert (right.exercise_step_id, right.attempt_count, right.last_score) == (12, 5, 86.0)
-    assert (left.exercise_step_id, left.attempt_count, left.last_score) == (13, 2, 90.0)
-    assert (right.pass_count, left.pass_count) == (2, 1)
-    assert right.evaluation_counts == {"PASS": 2, "FAIL": 3, "UNAVAILABLE": 0, "NOT_EVALUATED": 0}
-    assert right.feedback_code_counts == {"ARMS_NOT_OPEN_ENOUGH": 3, "RIGHT_ARM_TOO_LOW": 1}
+    left_leg, right_leg = stats.steps
+    assert (left_leg.exercise_step_id, left_leg.attempt_count, left_leg.last_score) == (12, 5, 86.0)
+    assert (right_leg.exercise_step_id, right_leg.attempt_count, right_leg.last_score) == (13, 2, 90.0)
+    assert (left_leg.pass_count, right_leg.pass_count) == (2, 1)
+    # FE가 보내는 NON_PASS는 CV 명세의 FAIL로 센다.
+    assert left_leg.evaluation_counts == {"PASS": 2, "FAIL": 3, "UNAVAILABLE": 0, "NOT_EVALUATED": 0}
+    # FE는 음성 안내마다 코드를 쌓지만, 시도 하나에서는 한 번만 센다.
+    assert left_leg.feedback_code_counts == {"LEFT_LEG_HEIGHT_ADJUST": 3, "LEFT_LEG_POSITION_ADJUST": 1}
 
     assert result.next_focus is not None and result.next_focus.step_id == 12
     corrections = {
         item["exercise_step_id"]: item["corrections"] for item in payload["focus_candidates"]
     }
     # 스텝 전용 안내가 운동 전용보다 먼저다. message가 빈 스텝 전용 안내(108)는 건너뛰고 103을 쓴다.
-    assert corrections[12] == ["팔을 어깨 높이까지 활짝 벌려 주세요.", "오른팔을 조금 더 올려 주세요."]
+    assert corrections[12] == ["왼쪽 다리를 더 들어주세요.", "왼쪽 다리 위치를 조정해 주세요."]
     # STUDY가 아닌 안내(109, EXERCISE)는 쓰지 않는다.
-    assert corrections[13] == ["왼발을 한 걸음 더 옆으로 내밀어 주세요."]
+    assert corrections[13] == ["오른쪽 다리를 더 들어주세요."]
 
     memos = _step_memos(db_session)
     assert [memo.exercise_step_records_id for memo in memos] == [15, 17]
@@ -238,12 +240,12 @@ def test_message가_빈_교정_문장은_건너뛴다(
         else SqlTeamActivityReader(db_session)
     )
 
-    cues = reader.get_correction_cues(["RIGHT_ARM_TOO_LOW", "LEFT_ARM_TOO_LOW"], 12, 1)
+    cues = reader.get_correction_cues(["LEFT_LEG_POSITION_ADJUST", "POSTURE_ADJUST"], 12, 1)
 
     # 스텝 전용 안내(108)는 message가 비어 있어 운동 전용 안내(103)로 내려간다.
-    assert cues["RIGHT_ARM_TOO_LOW"].message == "오른팔을 조금 더 올려 주세요."
+    assert cues["LEFT_LEG_POSITION_ADJUST"].message == "왼쪽 다리 위치를 조정해 주세요."
     # 꺼 둔 안내(107)는 처음부터 고르지 않는다.
-    assert "LEFT_ARM_TOO_LOW" not in cues
+    assert "POSTURE_ADJUST" not in cues
 
 
 def test_스텝_기록을_지우면_그_스텝_메모와_연결만_함께_지워진다(

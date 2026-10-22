@@ -96,7 +96,7 @@ def _attempt(
     *,
     score: float | None = 60.0,
     status: str | None = "FAIL",
-    codes: tuple[str, ...] = ("ARMS_NOT_OPEN_ENOUGH",),
+    codes: tuple[str, ...] = ("LEFT_LEG_HEIGHT_ADJUST",),
     modified_minutes: int | None = None,
     record_status: str = "NON_PASS",
 ) -> StepRecordRow:
@@ -120,8 +120,8 @@ def _attempt(
 
 
 STEPS = [
-    StepRow(id=12, exercise_id=1, step_order=2, step_name="오른쪽 스텝", step_description="설명"),
-    StepRow(id=13, exercise_id=1, step_order=3, step_name="왼쪽 스텝", step_description="설명"),
+    StepRow(id=12, exercise_id=1, step_order=2, step_name="왼쪽 다리 들기", step_description="설명"),
+    StepRow(id=13, exercise_id=1, step_order=4, step_name="오른쪽 다리 들기", step_description="설명"),
 ]
 
 
@@ -130,7 +130,7 @@ def user(db_session: Session) -> User:
     row = User(nickname="맘핏", email="mom@example.com", onboarding_completed=True)
     db_session.add(row)
     # 메모가 가리킬 스텝 기록(_store)이 기대는 운동과 스텝
-    db_session.add(Exercise(id=1, exercise_name="사이드 스텝", video_url="/media/guide.mp4"))
+    db_session.add(Exercise(id=1, exercise_name="Side Kick", video_url="/media/guide.mp4"))
     db_session.flush()
     db_session.add(
         ExerciseCriteriaVersion(
@@ -220,7 +220,7 @@ def test_같은_스텝을_여러_번_시도해도_오늘_메모는_하나다(
     db_session: Session, user: User
 ) -> None:
     attempts = [_attempt(rid, 12, score=50.0 + rid) for rid in range(1, 6)]
-    llm = FakeLlm(['[{"exercise_step_id": 12, "memo": "오른쪽 스텝: 5번 중 3번 양팔 벌림 부족"}]'])
+    llm = FakeLlm(['[{"exercise_step_id": 12, "memo": "왼쪽 다리 들기: 5번 중 3번 왼쪽 다리 들어 올림 부족"}]'])
 
     outcome = _refresh(db_session, user, attempts, llm)
     db_session.commit()
@@ -229,7 +229,7 @@ def test_같은_스텝을_여러_번_시도해도_오늘_메모는_하나다(
     assert len(rows) == 1
     # 메모가 어느 시도까지 반영했는지 알려 주는 표시는 오늘 마지막 시도 번호다.
     assert rows[0].exercise_step_records_id == 5
-    assert outcome.memos[12] == "오른쪽 스텝: 5번 중 3번 양팔 벌림 부족"
+    assert outcome.memos[12] == "왼쪽 다리 들기: 5번 중 3번 왼쪽 다리 들어 올림 부족"
     # 일일 리포트가 이 메모를 참고했다고 daily_feedback_sources에 이을 수 있게 메모 번호도 돌려준다.
     assert outcome.memo_ids == {12: rows[0].id}
 
@@ -250,7 +250,7 @@ def test_판정_결과가_없는_스텝은_LLM을_부르지_않고_코드가_쓴
     assert outcome.llm_calls == 0
     # 통과 횟수는 스텝 기록 status(PASS)를 센 것이다. CV 판정이 없어도 셀 수 있다.
     assert outcome.memos[12] == (
-        "오른쪽 스텝: 2번 시도 중 1번 통과, 52점에서 88점, 자세 판정 결과 없음"
+        "왼쪽 다리 들기: 2번 시도 중 1번 통과, 52점에서 88점, 자세 판정 결과 없음"
     )
 
 
@@ -263,7 +263,7 @@ def test_점수도_판정도_없으면_점수_없음으로_쓴다(db_session: Se
 
     outcome = _refresh(db_session, user, attempts, FakeLlm())
 
-    assert outcome.memos[12] == "오른쪽 스텝: 1번 시도 중 0번 통과, 점수 없음, 자세 판정 결과 없음"
+    assert outcome.memos[12] == "왼쪽 다리 들기: 1번 시도 중 0번 통과, 점수 없음, 자세 판정 결과 없음"
 
 
 def test_메모가_최신이면_다시_쓰지_않는다(db_session: Session, user: User) -> None:
@@ -375,8 +375,8 @@ def test_LLM_입력에_측정_수치와_교정_문장이_들어가지_않는다(
     assert "metric_results" not in sent
     assert "right_shoulder_angle" not in sent
     # 상태 설명('무엇이 부족했나')만 보낸다. 교정 방법(voice_cues)은 보내지 않는다.
-    assert "양팔 벌림 부족" in sent
-    assert "벌려 주세요" not in sent
+    assert "왼쪽 다리 들어 올림 부족" in sent
+    assert "들어주세요" not in sent
 
 
 def test_save가_False면_메모를_돌려주기만_하고_저장하지_않는다(
@@ -390,7 +390,7 @@ def test_save가_False면_메모를_돌려주기만_하고_저장하지_않는�
 
     assert outcome.memos == {
         12: "12 메모",
-        13: "왼쪽 스텝: 1번 시도 중 0번 통과, 60점, 자세 판정 결과 없음",
+        13: "오른쪽 다리 들기: 1번 시도 중 0번 통과, 60점, 자세 판정 결과 없음",
     }
     assert _memos(db_session) == []
 

@@ -41,13 +41,21 @@ STEP_STATUS_PASS = "PASS"
 # voice_cues.category. 자세 배우기 안내만 교정 문장으로 쓴다. TRACKING / EXERCISE / STUDY 중 하나다.
 # (develop #9 기준: schemas/voice_cue.py, repositories/voice_cue_repository.py)
 VOICE_CUE_CATEGORY_STUDY = "STUDY"
+# FE 자세 배우기 화면이 step_report에 넣는 값 중 CV 명세와 이름이 다른 것. 읽는 경계에서 명세 값으로 바꾼다.
+# 판정은 PASS / NON_PASS / NOT_EVALUATED(명세는 PASS / FAIL / UNAVAILABLE / NOT_EVALUATED),
+# 추적 상태는 TRACKING_OK / NOT_EVALUATED(명세는 VALID / UNAVAILABLE 등)를 쓴다.
+# FE는 점수가 한 번이라도 매겨진 스텝만 저장하므로 NOT_EVALUATED는 측정 불가로 보지 않고 그대로 둔다.
+# (momfit-frontend develop #13 기준: src/features/pose/api/saveSideKickStep.ts,
+#  src/features/pose/analyzers/sideKick/side-kick-study.ts의 finishStep)
+STEP_REPORT_EVALUATION_ALIASES = {"NON_PASS": "FAIL"}
+STEP_REPORT_TRACKING_ALIASES = {"TRACKING_OK": "VALID"}
 
 
 def target_sets_of(exercise_id: int) -> int | None:
     """일반 운동의 목표 세트 수. 팀 점수 규칙에 없는 운동이면 None이다.
 
     목표 세트는 DB가 아니라 팀 코드에 있다. 완료 세트는 exercise_records.completed_sets에 있다.
-    (develop #15 기준: services/exercise_scoring_config.py의 get_scoring_rule)
+    (develop #15 기준, #20에서 옮겨짐: services/pose_coaching/exercise_scoring_config.py의 get_scoring_rule)
     """
     try:
         return get_scoring_rule(exercise_id).target_sets

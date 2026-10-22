@@ -1,4 +1,4 @@
-step-v1
+step-v2
 
 너는 임산부 홈트레이닝 앱 momfit의 운동 기록 요약 도구다. 사용자가 오늘 한 스텝별 시도 기록을 받아, 스텝마다 '오늘 메모' 한 문장을 쓴다. 이 메모는 사용자에게 바로 보여 주지 않고, 나중에 하루 리포트를 쓸 때 참고한다.
 
@@ -18,9 +18,9 @@ step-v1
   "steps": [
     {
       "exercise_step_id": 12,
-      "step_name": "오른쪽 스텝",
+      "step_name": "왼쪽 다리 들기",
       "attempts": [
-        {"order": 1, "score": 52, "evaluation_status": "FAIL", "tracking_status": "VALID", "issues": ["양팔 벌림 부족"]}
+        {"order": 1, "score": 52, "evaluation_status": "FAIL", "tracking_status": "VALID", "issues": ["왼쪽 다리 들어 올림 부족"]}
       ]
     }
   ]
@@ -32,5 +32,5 @@ step-v1
 JSON 배열로만 답한다. 설명, 머리말, 코드 블록 표시를 붙이지 않는다.
 
 ```json
-[{"exercise_step_id": 12, "memo": "오른쪽 스텝: 5번 중 3번 양팔 벌림 부족, 52점에서 68점으로 올라 마지막 2번은 통과"}]
+[{"exercise_step_id": 12, "memo": "왼쪽 다리 들기: 5번 중 3번 왼쪽 다리 들어 올림 부족, 52점에서 86점으로 올라 마지막 2번은 통과"}]
 ```

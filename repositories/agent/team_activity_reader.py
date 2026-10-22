@@ -221,6 +221,11 @@ def _moment(value: Any) -> datetime | None:
     return datetime.fromisoformat(str(value)).replace(tzinfo=None)
 
 
+def _alias(aliases: dict[str, str], value: Any) -> Any:
+    """FE가 쓰는 이름이면 CV 명세 이름으로 바꾼다. 문자열이 아니면 그대로 둔다."""
+    return aliases.get(value, value) if isinstance(value, str) else value
+
+
 def _step_report_fields(raw: Any) -> dict[str, Any]:
     """step_report에서 판정 세 값과 버전 두 개만 꺼낸다.
 
@@ -228,6 +233,9 @@ def _step_report_fields(raw: Any) -> dict[str, Any]:
     사용자 JSON에 없어서 보통 None이다.
     없거나({}·None) 깨진 step_report는 판정 없음으로 본다. 팀 API는 step_report를 비우면
     {}로 저장한다. (develop #9 기준: schemas/exercise_step_record.py)
+    FE가 쓰는 판정·추적 상태 이름은 CV 명세 이름으로 바꾼다. (config의 *_ALIASES)
+    피드백 코드는 FE가 음성 안내를 할 때마다 넣어 한 시도에 같은 코드가 여러 번 들어 있다.
+    '몇 번 시도 중 몇 번'을 세려고 시도 하나에서는 한 번만 남긴다.
     """
     if raw is None:
         report: Any = {}
@@ -251,9 +259,13 @@ def _step_report_fields(raw: Any) -> dict[str, Any]:
     tracking = report.get("tracking_info") or {}
     codes = evaluation.get("feedback_codes") or []
     return {
-        "evaluation_status": evaluation.get("status"),
-        "feedback_codes": tuple(str(code) for code in codes),
-        "tracking_status": tracking.get("tracking_status"),
+        "evaluation_status": _alias(
+            config.STEP_REPORT_EVALUATION_ALIASES, evaluation.get("status")
+        ),
+        "feedback_codes": tuple(dict.fromkeys(str(code) for code in codes)),
+        "tracking_status": _alias(
+            config.STEP_REPORT_TRACKING_ALIASES, tracking.get("tracking_status")
+        ),
         "measurement_profile_version": report.get("measurement_profile_version"),
         "criteria_version": report.get("criteria_version"),
     }
