@@ -17,6 +17,7 @@ import models  # noqa: F401  (create_all이 모든 모델을 알 수 있도록 i
 from api.agent.daily_report import router as agent_router
 from api.admin import router as admin_router
 from api.auth import router as auth_router
+from api.chat_proxy import router as chat_proxy_router
 from api.health import router as health_router
 from api.kakao_auth import router as kakao_auth_router
 from api.users import router as users_router
@@ -65,6 +66,7 @@ app.include_router(auth_router)
 app.include_router(kakao_auth_router)
 app.include_router(users_router)
 app.include_router(admin_router)
+app.include_router(chat_proxy_router)
 app.include_router(agent_router)
 
 app.include_router(voice_cues_router)
