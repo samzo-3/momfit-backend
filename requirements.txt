@@ -7,3 +7,5 @@ PyJWT==2.15.1
 argon2-cffi==25.1.0
 google-genai==2.32.0
 anthropic==1.17.0
+Pillow==12.1.1
+python-multipart==0.0.22

@@ -2,6 +2,7 @@
 
 import asyncio
 from api.sidekick_study import router as sidekick_study_router
+from api.environment_checks import router as environment_checks_router
 from api.voice_cues import router as voice_cues_router
 from api.exercise_step_records import router as exercise_step_records_router
 from api.exercise_records import router as exercise_records_router
@@ -68,3 +69,4 @@ app.include_router(voice_cues_router)
 app.include_router(exercise_step_records_router)
 app.include_router(exercise_records_router)
 app.include_router(sidekick_study_router)
+app.include_router(environment_checks_router)

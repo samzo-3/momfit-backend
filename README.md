@@ -340,3 +340,40 @@ docs: API 명세서 업데이트
 - [ ] 테스트 결과를 작성했는가?
 - [ ] 최소 1명의 리뷰 승인을 받았는가?
 - [ ] 병합 후 기능 브랜치를 삭제했는가?
+
+---
+
+## YOLO 운동 전 환경 점검
+
+`POST /api/environment-checks`는 로그인 및 온보딩 완료 사용자의 웹캠 이미지 한 장을 검사합니다. 선택한 운동의 `exercise_id`는 필수이며, 운동 모드는 받지 않습니다. 따라서 일반 운동과 자세 배우기 화면은 같은 API를 호출합니다. 이미지 원본은 저장하지 않으며, bbox는 **좌우 반전하지 않은 원본 프레임 픽셀 좌표**입니다. 웹 화면의 거울 표시 반전은 프론트엔드에서만 적용해야 합니다.
+
+Windows PowerShell에서 기본 의존성과 Vision 선택 의존성을 설치합니다. 첫 YOLO 실행은 모델 가중치를 내려받을 수 있습니다.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -r requirements-vision.txt
+uvicorn main:app --reload
+```
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/api/environment-checks `
+  -H "Authorization: Bearer <access-token>" `
+  -F "exercise_id=1" `
+  -F "image=@C:\temp\camera.jpg;type=image/jpeg"
+```
+
+```json
+{
+  "status": "PASS",
+  "can_continue": true,
+  "profile": "default",
+  "detections": [{"name": "person", "confidence": 0.95, "bbox": {"x1": 350, "y1": 100, "x2": 650, "y2": 700}}],
+  "issue_codes": [],
+  "messages": ["화면에서 확인 가능한 범위에는 조정이 필요한 사항이 보이지 않아요."]
+}
+```
+
+프론트 연결 순서는 `모드 선택 → 운동 선택(exercise_id 보관) → 환경 점검 호출 → PASS일 때만 기존 운동 시작 흐름`입니다. `NEEDS_ADJUSTMENT`와 `INCONCLUSIVE`는 시작을 막고 재점검 버튼을 보여야 합니다. 운동 중과 스텝 전환 시에는 이 API를 자동 호출하지 않으며, 다른 운동을 선택한 경우에만 다시 호출합니다.
+
+YOLO의 2D 객체 탐지는 실제 거리·충돌 위험·안전성을 확정하지 않습니다. 사람이 없으면 `INCONCLUSIVE`, 여러 명이 보이거나 사람이 너무 작으면 `NEEDS_ADJUSTMENT`로 반환합니다. 현재 맨몸운동은 주변 가구의 존재·미탐지만으로 실패시키지 않습니다. 현재 DB의 `Side Kick`은 `default` 정책이며, 아직 DB에 없는 `side_step_open_window`와 매핑하지 않습니다. 해당 운동이 실제로 등록되고 식별명이 확정된 뒤에만 전용 정책을 연결합니다. 대상 추적과 MediaPipe/프론트 역할 경계는 [환경 점검 대상 추적 설계](docs/environment_check_target_tracking_design.md)에 정리했습니다.
