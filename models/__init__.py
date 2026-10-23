@@ -18,6 +18,7 @@ from models.exercise_step_record import ExerciseStepRecord
 from models.refresh_token import RefreshToken
 from models.user import User
 from models.user_goal import UserGoal
+from models.voice_cue import VoiceCue
 
 __all__ = [
     "AdminAuditLog",
@@ -36,4 +37,5 @@ __all__ = [
     "RefreshToken",
     "User",
     "UserGoal",
+    "VoiceCue",
 ]

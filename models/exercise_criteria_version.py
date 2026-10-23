@@ -31,7 +31,11 @@ class ExerciseCriteriaVersion(CreatedAtMixin, Base):
     evaluation_criteria: Mapped[dict[str, Any]] = mapped_column(JSON)
     criteria_version: Mapped[str] = mapped_column(String(100))
     schema_version: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(20), default=CRITERIA_STATUS_ACTIVE)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default=CRITERIA_STATUS_ACTIVE,
+        server_default=text("'ACTIVE'"),
+    )
 
     exercise: Mapped["Exercise"] = relationship(back_populates="criteria_versions")
     step_criteria_versions: Mapped[list["ExerciseStepCriteriaVersion"]] = relationship(back_populates="exercise_criteria_version")
