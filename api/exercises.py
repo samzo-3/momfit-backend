@@ -1,6 +1,6 @@
 """기존 Side Kick 전용 API와 별개인 범용 운동 카탈로그 API."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,6 @@ from schemas.exercise_catalog import (
     ExerciseCriteriaResponse,
     ExerciseStepResponse,
     ExerciseSummary,
-    StepSessionStartResponse,
 )
 from services.pose_coaching.exercise_catalog_service import (
     get_active_criteria,
@@ -20,7 +19,6 @@ from services.pose_coaching.exercise_catalog_service import (
     get_exercise,
     get_step,
     list_steps,
-    start_step_session,
 )
 
 
@@ -84,22 +82,3 @@ def criteria_version(
 ) -> ExerciseCriteriaResponse:
     _ = user
     return get_criteria_version(db, exercise_id, version_id)
-
-
-@router.post(
-    "/exercise-steps/{step_id}/step-sessions",
-    response_model=StepSessionStartResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def begin_step_session(
-    step_id: int,
-    user: User = Depends(get_onboarded_user),
-    db: Session = Depends(get_db),
-) -> StepSessionStartResponse:
-    _ = user
-    exercise_id, step_session_id = start_step_session(db, step_id)
-    return StepSessionStartResponse(
-        exercise_id=exercise_id,
-        exercise_step_id=step_id,
-        step_session_id=step_session_id,
-    )

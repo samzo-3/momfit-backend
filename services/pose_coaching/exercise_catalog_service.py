@@ -1,7 +1,5 @@
 """DB PK/FK 기반 운동·STEP·기준 조회 서비스."""
 
-from uuid import uuid4
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -70,12 +68,6 @@ def get_criteria_version(
     if version is None:
         raise AppError(404, "EXERCISE_CRITERIA_VERSION_NOT_FOUND", "평가 기준 버전을 찾을 수 없습니다.")
     return _criteria_response(db, version)
-
-
-def start_step_session(db: Session, step_id: int) -> tuple[int, str]:
-    """STEP을 실제 시작할 때만 호출한다. 발급값은 별도 테이블에 저장하지 않는다."""
-    step = get_step(db, step_id)
-    return step.exercise_id, str(uuid4())
 
 
 def _criteria_response(

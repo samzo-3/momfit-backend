@@ -5,10 +5,8 @@ from sqlalchemy.orm import Session
 
 from models.exercise import Exercise
 from models.exercise_criteria_version import ExerciseCriteriaVersion
-from models.exercise_record import ExerciseRecord
 from models.exercise_step import ExerciseStep
 from models.exercise_step_criteria_version import ExerciseStepCriteriaVersion
-from models.exercise_step_record import ExerciseStepRecord
 from tests.helpers import signup_payload
 
 
@@ -57,19 +55,6 @@ def test_catalog_and_fixed_criteria_version_are_read_from_db(client: TestClient,
     assert active.status_code == fixed.status_code == 200
     assert active.json()["id"] == fixed.json()["id"] == 201
     assert active.json()["steps"][0]["evaluation_criteria"] == {"enabled": False}
-
-
-def test_step_start_issues_uuid_without_creating_any_execution_record(client: TestClient, db_session: Session) -> None:
-    _seed(db_session)
-    headers = _headers(_token(client))
-
-    first = client.post("/api/exercise-steps/101/step-sessions", headers=headers)
-    second = client.post("/api/exercise-steps/101/step-sessions", headers=headers)
-
-    assert first.status_code == second.status_code == 201
-    assert first.json()["step_session_id"] != second.json()["step_session_id"]
-    assert db_session.query(ExerciseRecord).count() == 0
-    assert db_session.query(ExerciseStepRecord).count() == 0
 
 
 def test_active_criteria_rejects_multiple_active_versions(client: TestClient, db_session: Session) -> None:

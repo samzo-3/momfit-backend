@@ -1,8 +1,6 @@
-"""운동 카탈로그·평가 기준 조회 및 STEP 시작 식별자 계약."""
+"""운동 카탈로그와 평가 기준 조회 계약."""
 
 from typing import Any
-from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict
 
 
@@ -44,9 +42,3 @@ class ExerciseCriteriaResponse(BaseModel):
     status: str
     evaluation_criteria: dict[str, Any]
     steps: list[ExerciseCriteriaStepResponse]
-
-
-class StepSessionStartResponse(BaseModel):
-    exercise_id: int
-    exercise_step_id: int
-    step_session_id: UUID
