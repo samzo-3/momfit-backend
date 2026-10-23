@@ -1,0 +1,12 @@
+{
+  "measurement_profile_version": "side_step_front_2d_momfit_mapping_v2",
+  "mapping_rule_version": "raw_left_to_momfit_right_mirror_x_v1",
+  "study": {"start_step_order": 1, "final_pass_rule": "ALL_IMPORTANT_PASS"},
+  "steps": [
+    {"step_order": 1, "step_code": "READY", "step_criteria_version": "0.1.0-draft.1", "criteria": {"type": "CALIBRATION", "enabled": false, "baseline": "USER_READY", "reference_values": {"wrist_distance_ratio": 1.329157, "ankle_distance_ratio": 0.870257}}},
+    {"step_order": 2, "step_code": "RIGHT_LIFT_PEAK", "step_criteria_version": "0.1.0-draft.1", "criteria": {"type": "RULES", "side": "RIGHT", "enabled": true, "logic": "ALL", "rules": [{"metric": "right_ankle_offset_ratio", "operator": "GTE", "value": 0.223484, "reference_value": 0.446968}, {"metric": "wrist_distance_ratio", "operator": "GTE", "value": 1.984576, "reference_value": 2.639995}], "on_missing_metric": "NOT_EVALUATED"}},
+    {"step_order": 3, "step_code": "RIGHT_RETURN", "step_criteria_version": "0.1.0-draft.1", "criteria": {"type": "RULES", "side": "RIGHT", "enabled": true, "logic": "ALL", "rules": [{"metric": "right_ankle_offset_ratio", "operator": "LTE", "value": 0.317699, "reference_value": 0.188431}], "on_missing_metric": "NOT_EVALUATED"}},
+    {"step_order": 4, "step_code": "LEFT_LIFT_PEAK", "step_criteria_version": "0.1.0-draft.1", "criteria": {"type": "RULES", "side": "LEFT", "enabled": true, "logic": "ALL", "rules": [{"metric": "left_ankle_offset_ratio", "operator": "GTE", "value": 0.439825, "reference_value": 0.879651}, {"metric": "wrist_distance_ratio", "operator": "GTE", "value": 1.704028, "reference_value": 2.0789}], "on_missing_metric": "NOT_EVALUATED"}},
+    {"step_order": 5, "step_code": "LEFT_RETURN", "step_criteria_version": "0.1.0-draft.1", "criteria": {"type": "RULES", "side": "LEFT", "enabled": false, "logic": "ALL", "rules": [{"metric": "left_ankle_offset_ratio", "operator": "LTE", "value": 0.488654, "reference_value": 0.097657}], "on_missing_metric": "NOT_EVALUATED"}}
+  ]
+}

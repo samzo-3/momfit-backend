@@ -1,0 +1,1 @@
+{"type": "RULES", "side": "LEFT", "enabled": false, "logic": "ALL", "rules": [{"metric": "left_ankle_offset_ratio", "operator": "LTE", "value": 0.488654, "reference_value": 0.097657}], "on_missing_metric": "NOT_EVALUATED"}

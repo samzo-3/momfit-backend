@@ -47,6 +47,9 @@ class ExerciseStepRecord(TimestampMixin, Base):
         BigInteger, ForeignKey("exercise_steps.id"), index=True
     )
 
+    # 한 번의 스텝 측정 시도를 묶는 UUID 문자열이다. 여러 기록이 같은 세션을 가질 수 있다.
+    step_session_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
     exercise_criteria_version_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("exercise_criteria_versions.id"),

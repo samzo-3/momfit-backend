@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
@@ -24,6 +24,8 @@ class ExerciseStep(Base):
     step_name: Mapped[str] = mapped_column(String(100))
     clip_video_url: Mapped[str] = mapped_column(String(500))
     step_description: Mapped[str | None] = mapped_column(Text)
+    # ERD상 중요 스텝 여부는 반드시 명시해서 저장한다. 기본값으로 의미를 추측하지 않는다.
+    important: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     exercise: Mapped["Exercise"] = relationship(back_populates="steps")
     criteria_versions: Mapped[list["ExerciseStepCriteriaVersion"]] = relationship(back_populates="exercise_step")
