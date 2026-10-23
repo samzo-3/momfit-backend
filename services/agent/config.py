@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from services.exercise_scoring_config import get_scoring_rule
+from services.pose_coaching.exercise_scoring_config import get_scoring_rule
 
 AGENT_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = AGENT_DIR / "prompts"
@@ -26,25 +26,36 @@ RUNS_DIR = AGENT_DIR / "runs"
 STEP_REPORT_COLUMN = "step_report"
 # 점수 범위. 이 범위를 벗어난 값은 집계에서 버린다.
 # (develop #9 기준: schemas/exercise_step_record.py의 step_score 0~100,
-#  services/exercise_record_score.py의 total_score 100점 상한)
+#  #20에서 옮겨진 services/pose_coaching/exercise_record_score.py의 total_score 100점 상한)
 SCORE_MIN = 0.0
 SCORE_MAX = 100.0
 # exercise_records.status. in_progress / paused / completed 중 하나다.
-# (develop #15 기준: schemas/exercise_record.py, services/exercise_record_service.py)
+# (develop #15 기준, #20에서 옮겨짐: schemas/exercise_record.py, services/pose_coaching/exercise_record_service.py)
 EXERCISE_STATUS_COMPLETED = "completed"
-# exercise_step_records.status. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
-# PASS는 80점 이상일 때만 저장된다. (develop #9 기준: schemas/exercise_step_record.py)
+# exercise_step_records의 판정 컬럼. 시도 하나의 통과 여부이고 PASS / NON_PASS / NOT_EVALUATED 중 하나다.
+# 같은 테이블의 status는 진행 상태(in_progress / completed)로 바뀌었다.
+# PASS는 80점 이상일 때만 저장된다.
+# (develop 73d26a9 기준: models/exercise_step_record.py. PASS 기준은 develop #9의 schemas/exercise_step_record.py)
+STEP_RESULT_COLUMN = "step_result_status"
 STEP_STATUS_PASS = "PASS"
 # voice_cues.category. 자세 배우기 안내만 교정 문장으로 쓴다. TRACKING / EXERCISE / STUDY 중 하나다.
 # (develop #9 기준: schemas/voice_cue.py, repositories/voice_cue_repository.py)
 VOICE_CUE_CATEGORY_STUDY = "STUDY"
+# FE 자세 배우기 화면이 step_report에 넣는 값 중 CV 명세와 이름이 다른 것. 읽는 경계에서 명세 값으로 바꾼다.
+# 판정은 PASS / NON_PASS / NOT_EVALUATED(명세는 PASS / FAIL / UNAVAILABLE / NOT_EVALUATED),
+# 추적 상태는 TRACKING_OK / NOT_EVALUATED(명세는 VALID / UNAVAILABLE 등)를 쓴다.
+# FE는 점수가 한 번이라도 매겨진 스텝만 저장하므로 NOT_EVALUATED는 측정 불가로 보지 않고 그대로 둔다.
+# (momfit-frontend develop #13 기준: src/features/pose/api/saveSideKickStep.ts,
+#  src/features/pose/analyzers/sideKick/side-kick-study.ts의 finishStep)
+STEP_REPORT_EVALUATION_ALIASES = {"NON_PASS": "FAIL"}
+STEP_REPORT_TRACKING_ALIASES = {"TRACKING_OK": "VALID"}
 
 
 def target_sets_of(exercise_id: int) -> int | None:
     """일반 운동의 목표 세트 수. 팀 점수 규칙에 없는 운동이면 None이다.
 
     목표 세트는 DB가 아니라 팀 코드에 있다. 완료 세트는 exercise_records.completed_sets에 있다.
-    (develop #15 기준: services/exercise_scoring_config.py의 get_scoring_rule)
+    (develop #15 기준, #20에서 옮겨짐: services/pose_coaching/exercise_scoring_config.py의 get_scoring_rule)
     """
     try:
         return get_scoring_rule(exercise_id).target_sets

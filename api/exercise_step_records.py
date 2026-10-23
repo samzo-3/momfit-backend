@@ -10,7 +10,7 @@ from schemas.exercise_step_record import (
     ExerciseStepRecordCreate,
     ExerciseStepRecordResponse,
 )
-from services.exercise_step_record_service import (
+from services.pose_coaching.exercise_step_record_service import (
     create_exercise_step_record,
 )
 

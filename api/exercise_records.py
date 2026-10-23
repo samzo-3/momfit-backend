@@ -14,7 +14,7 @@ from schemas.exercise_record import (
     ExerciseRecordResponse,
     ExerciseRecordSummary,
 )
-from services.exercise_record_service import (
+from services.pose_coaching.exercise_record_service import (
     complete_record,
     create_record,
     get_record,

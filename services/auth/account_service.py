@@ -15,8 +15,9 @@ from core.clock import utc_now
 from core.config import settings
 from core.errors import AppError
 from models.auth_identity import KAKAO_PROVIDER
-from models.user import STATUS_ACTIVE, STATUS_WITHDRAWN, User
+from models.user import ROLE_ADMIN, STATUS_ACTIVE, STATUS_WITHDRAWN, User
 from repositories import (
+    daily_visit_repository,
     email_verification_repository,
     refresh_token_repository,
     user_repository,
@@ -55,7 +56,12 @@ def withdraw(
 
     카카오 계정이면 처리를 마친 뒤 카카오 연결을 끊는다. (실패해도 탈퇴는 유지된다)
     복구하면 카카오에서 다시 동의 화면이 나온다.
+    관리자 계정은 탈퇴할 수 없다. (유일한 관리자가 로그인할 수 없게 되는 것을 막는다)
     """
+    if user.role == ROLE_ADMIN:
+        raise AppError(
+            403, "ADMIN_CANNOT_WITHDRAW", "관리자 계정은 탈퇴할 수 없습니다."
+        )
     now = now or utc_now()
     kakao_id = next(
         (i.provider_user_id for i in user.identities if i.provider == KAKAO_PROVIDER),
@@ -108,7 +114,7 @@ def restore(db: Session, user_id: int, now: datetime | None = None) -> IssuedTok
 def purge_expired(db: Session, now: datetime | None = None) -> int:
     """유예 기간이 지난 탈퇴 계정을 완전히 삭제하고 삭제한 수를 반환한다.
 
-    사용자 프로필과 건강정보, 로그인 수단, refresh 토큰, 이메일 인증 기록을 모두 지운다.
+    사용자 프로필과 건강정보, 로그인 수단, refresh 토큰, 방문 기록, 이메일 인증 기록을 모두 지운다.
     같은 작업을 여러 번 실행해도 안전하다.
     """
     now = now or utc_now()
@@ -116,6 +122,7 @@ def purge_expired(db: Session, now: datetime | None = None) -> int:
     count = 0
     for user in user_repository.list_withdrawn_before(db, cutoff):
         refresh_token_repository.delete_all_for_user(db, user.id)
+        daily_visit_repository.delete_all_for_user(db, user.id)
         if user.email:
             email_verification_repository.delete_by_email(db, user.email)
         user_repository.delete(db, user)

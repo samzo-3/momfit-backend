@@ -47,6 +47,7 @@ def _record(
         started_at=started if minutes is not None else None,
         ended_at=started + timedelta(minutes=minutes) if minutes is not None else None,
         created_at=started,
+        modified_at=started,
     )
 
 
@@ -180,7 +181,7 @@ def test_점수_규칙에_없는_운동은_목표_세트를_비워_둔다() -> N
 
 
 def test_목표_세트는_팀_점수_규칙에서_가져온다() -> None:
-    # develop #15 기준: services/exercise_scoring_config.py
+    # develop #15 기준, #20에서 옮겨짐: services/pose_coaching/exercise_scoring_config.py
     assert config.target_sets_of(1) == 10
     assert config.target_sets_of(99) is None
 

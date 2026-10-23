@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import CreatedAtMixin
 
 if TYPE_CHECKING:
@@ -19,7 +20,9 @@ class UserGoal(CreatedAtMixin, Base):
     __tablename__ = "user_goal"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(
+        BigIntId, ForeignKey("users.id"), index=True
+    )
     exercise_id: Mapped[int] = mapped_column(
         "exercises_id", BigInteger, ForeignKey("exercises.id"), index=True
     )

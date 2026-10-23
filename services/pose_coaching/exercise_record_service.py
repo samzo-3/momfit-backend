@@ -11,8 +11,8 @@ from core.errors import AppError
 from models.exercise import Exercise
 from models.exercise_criteria_version import ExerciseCriteriaVersion
 from models.exercise_record import ExerciseRecord
-from services.exercise_record_score import calculate_set_score
-from services.exercise_scoring_config import get_scoring_rule
+from services.pose_coaching.exercise_record_score import calculate_set_score
+from services.pose_coaching.exercise_scoring_config import get_scoring_rule
 
 
 def _save(db: Session, record: ExerciseRecord) -> ExerciseRecord:

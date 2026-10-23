@@ -51,14 +51,14 @@ SCENARIOS = (
     Scenario("판정 있음 · 측정 불가 섞임", "evaluated", date(2026, 10, 20), NORMAL, True),
     Scenario("기록 없는 날", "evaluated", date(2026, 10, 21), REASON_NO_RECORDS, False),
     Scenario(
-        "지금 실데이터 · 판정 없음, 점수 있음",
+        "판정 없음 · 점수 있음",
         "not_evaluated_scored",
         date(2026, 10, 20),
         NORMAL,
         True,
     ),
     Scenario(
-        "지금 실데이터 · 점수까지 없음",
+        "판정 없음 · 점수까지 없음",
         "not_evaluated_unscored",
         date(2026, 10, 20),
         NORMAL,

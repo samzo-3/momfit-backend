@@ -100,8 +100,8 @@ class SetProgress:
 class ExerciseSummary:
     """일반 운동 하나의 오늘 요약.
 
-    점수는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다. (develop #15 기준:
-    services/exercise_record_score.py) 그래서 기록마다 완료 세트 / 목표 세트를 함께 둔다.
+    점수는 자세 점수가 아니라 '완료 세트 × 세트당 점수'다. (develop #15 기준, #20에서 옮겨짐:
+    services/pose_coaching/exercise_record_score.py) 그래서 기록마다 완료 세트 / 목표 세트를 함께 둔다.
     """
 
     exercise_id: int

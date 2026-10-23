@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from db.session import engine
 from models.exercise_record import ExerciseRecord
-from services.exercise_record_service import (
+from services.pose_coaching.exercise_record_service import (
     create_record,
     get_record,
     pause_record,

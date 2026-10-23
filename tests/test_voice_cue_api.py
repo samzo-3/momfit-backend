@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from api.deps import get_onboarded_user
 from api.voice_cues import router
 from db.session import get_db
-from services import voice_cue_service
+from services.pose_coaching import voice_cue_service
 
 
 @pytest.fixture

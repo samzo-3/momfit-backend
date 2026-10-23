@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import CreatedAtMixin
 
 
@@ -14,9 +15,11 @@ class RefreshToken(CreatedAtMixin, Base):
 
     __tablename__ = "refresh_tokens"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        BigIntId, primary_key=True, autoincrement=True
+    )
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+        BigIntId, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     # 같은 로그인에서 교체된 토큰들을 묶는다. 재사용이 탐지되면 family 전체를 폐기한다.

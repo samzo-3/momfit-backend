@@ -7,6 +7,7 @@ from sqlalchemy import BigInteger, ForeignKey, JSON, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from db.types import BigIntId
 from models.timestamp_mixin import TimestampMixin
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class ExerciseStepRecord(TimestampMixin, Base):
     )
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), index=True
+        BigIntId, ForeignKey("users.id"), index=True
     )
 
     exercise_id: Mapped[int] = mapped_column(
@@ -47,7 +48,6 @@ class ExerciseStepRecord(TimestampMixin, Base):
         BigInteger, ForeignKey("exercise_steps.id"), index=True
     )
 
-    # 한 번의 스텝 측정 시도를 묶는 UUID 문자열이다. 여러 기록이 같은 세션을 가질 수 있다.
     step_session_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
     exercise_criteria_version_id: Mapped[int] = mapped_column(

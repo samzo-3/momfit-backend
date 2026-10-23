@@ -9,7 +9,7 @@ from api.deps import get_onboarded_user
 from db.session import get_db
 from models.user import User
 from schemas.voice_cue import VoiceCueResponse
-from services.voice_cue_service import get_voice_cues
+from services.pose_coaching.voice_cue_service import get_voice_cues
 
 
 router = APIRouter(prefix="/api/voice-cues", tags=["voice-cues"])

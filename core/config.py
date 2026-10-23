@@ -41,6 +41,11 @@ class Settings:
     account_grace_days: int
     # 유예 기간이 지난 계정을 삭제하는 주기(시간). 0이면 앱 안의 주기 작업을 끈다.
     account_purge_interval_hours: int
+    # 챗봇 서비스 주소. 챗봇은 별도 서비스이고 Ingress가 /api를 백엔드로만 보내므로, 백엔드가 /api/chat/*을 대신 전달한다.
+    # 같은 namespace의 Service 주소이며 비밀이 아니라서 기본값을 둔다. 로컬에서는 CHATBOT_URL=http://localhost:8100으로 바꾼다.
+    chatbot_url: str = "http://momfit-chatbot.team.svc.cluster.local:8000"
+    # 답변 생성(LLM 호출)에 수 초가 걸리므로 넉넉히 둔다. 프론트 nginx의 읽기 제한(60초)과 맞춘 값이다.
+    chatbot_timeout_seconds: float = 60.0
 
     def require_jwt_secret(self) -> str:
         """JWT 서명 키를 반환하고, 설정되지 않았으면 예외를 발생시킨다."""
@@ -78,6 +83,11 @@ def get_settings() -> Settings:
         account_purge_interval_hours=int(
             os.getenv("ACCOUNT_PURGE_INTERVAL_HOURS") or "6"
         ),
+        chatbot_url=(
+            os.getenv("CHATBOT_URL")
+            or "http://momfit-chatbot.team.svc.cluster.local:8000"
+        ).rstrip("/"),
+        chatbot_timeout_seconds=float(os.getenv("CHATBOT_TIMEOUT_SECONDS") or "60"),
     )
 
 

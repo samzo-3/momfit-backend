@@ -1,5 +1,5 @@
 {
-  "note": "지금 실데이터 모양 중 더 이른 단계. 허용 범위가 비어 있어 스텝 점수(step_score)까지 비어 있다. 일반 운동 total_score는 세트 점수라 비지 않는다. (develop #15 기준)",
+  "note": "판정 없음 중 더 이른 단계. 스텝 점수(step_score)까지 비어 있다. 일반 운동 total_score는 세트 점수라 비지 않는다. (develop #15 기준)",
   "exercise_records": [
     {
       "id": 51,

@@ -1,5 +1,5 @@
 {
-  "note": "판정(허용 범위)이 채워진 뒤의 시나리오. CV 명세서 예시 피드백 코드를 쓴다. 2026-10-21은 기록이 없다. 값은 develop #15 팀 규칙을 따른다: 운동 점수는 완료 세트 × 10점, 스텝 status는 80점 이상 PASS / 점수 있으면 NON_PASS / 점수 없으면 NOT_EVALUATED.",
+  "note": "Side Kick 자세 배우기 시나리오. 2026-10-19의 시도와 2026-10-20의 21~23번 시도는 FE(momfit-frontend develop #13의 saveSideKickStep.ts)가 실제로 보내는 step_report 모양이다: 판정 PASS / NON_PASS, 추적 상태 TRACKING_OK, 음성 안내를 할 때마다 쌓여 같은 코드가 겹치는 feedback_codes. 24·25번은 CV 명세 모양으로 남겼다: FE가 지금은 저장하지 않는 측정 불가(24)와 판정 없음(25) 경로, 그리고 관절 수치를 읽는 경계에서 버리는지를 확인한다. 2026-10-21은 기록이 없다. 값은 develop #15 팀 규칙을 따른다: 운동 점수는 완료 세트 × 10점, 스텝 status는 80점 이상 PASS / 점수 있으면 NON_PASS / 점수 없으면 NOT_EVALUATED.",
   "exercise_records": [
     {
       "id": 1,
@@ -82,39 +82,18 @@
       "step_score": 52.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
-          "status": "FAIL",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": false
-            }
-          },
+          "status": "NON_PASS",
+          "feedback_count": 2,
           "feedback_codes": [
-            "ARMS_NOT_OPEN_ENOUGH"
+            "LEFT_LEG_HEIGHT_ADJUST",
+            "LEFT_LEG_HEIGHT_ADJUST"
           ]
         }
       },
@@ -130,39 +109,17 @@
       "step_score": 56.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
-          "status": "FAIL",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": false
-            }
-          },
+          "status": "NON_PASS",
+          "feedback_count": 1,
           "feedback_codes": [
-            "ARMS_NOT_OPEN_ENOUGH"
+            "LEFT_LEG_HEIGHT_ADJUST"
           ]
         }
       },
@@ -178,40 +135,19 @@
       "step_score": 60.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
-          "status": "FAIL",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": false
-            }
-          },
+          "status": "NON_PASS",
+          "feedback_count": 3,
           "feedback_codes": [
-            "ARMS_NOT_OPEN_ENOUGH",
-            "RIGHT_ARM_TOO_LOW"
+            "LEFT_LEG_HEIGHT_ADJUST",
+            "LEFT_LEG_POSITION_ADJUST",
+            "LEFT_LEG_HEIGHT_ADJUST"
           ]
         }
       },
@@ -227,37 +163,15 @@
       "step_score": 82.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
           "status": "PASS",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": true
-            }
-          },
+          "feedback_count": 0,
           "feedback_codes": []
         }
       },
@@ -273,37 +187,15 @@
       "step_score": 86.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
           "status": "PASS",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": true
-            }
-          },
+          "feedback_count": 0,
           "feedback_codes": []
         }
       },
@@ -319,39 +211,17 @@
       "step_score": 70.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
-          "status": "FAIL",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": false
-            }
-          },
+          "status": "NON_PASS",
+          "feedback_count": 1,
           "feedback_codes": [
-            "LEFT_STEP_TOO_SHORT"
+            "RIGHT_LEG_HEIGHT_ADJUST"
           ]
         }
       },
@@ -367,37 +237,15 @@
       "step_score": 90.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
           "status": "PASS",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": true
-            }
-          },
+          "feedback_count": 0,
           "feedback_codes": []
         }
       },
@@ -413,39 +261,17 @@
       "step_score": 66.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
-          "status": "FAIL",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": false
-            }
-          },
+          "status": "NON_PASS",
+          "feedback_count": 1,
           "feedback_codes": [
-            "ARMS_NOT_OPEN_ENOUGH"
+            "LEFT_LEG_HEIGHT_ADJUST"
           ]
         }
       },
@@ -461,37 +287,15 @@
       "step_score": 82.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
           "status": "PASS",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": true
-            }
-          },
+          "feedback_count": 0,
           "feedback_codes": []
         }
       },
@@ -507,37 +311,15 @@
       "step_score": 88.0,
       "step_report": {
         "schema_version": 1,
-        "state_code": "RIGHT_LIFT_PEAK",
         "measurement_profile_version": "side_step_front_2d_v1",
         "tracking_info": {
           "camera_view": "FRONT",
           "coordinate_system": "IMAGE_NORMALIZED_2D",
-          "tracking_status": "VALID"
-        },
-        "measured_metrics": {
-          "right_shoulder_angle": {
-            "value": 88.0,
-            "unit": "degree"
-          },
-          "left_shoulder_angle": {
-            "value": 91.0,
-            "unit": "degree"
-          },
-          "wrist_distance_ratio": {
-            "value": 1.42,
-            "unit": "ratio"
-          }
+          "tracking_status": "TRACKING_OK"
         },
         "evaluation_result": {
           "status": "PASS",
-          "metric_results": {
-            "right_shoulder_angle": {
-              "measured_value": 88.0,
-              "reference_min": 70.0,
-              "reference_max": 110.0,
-              "passed": true
-            }
-          },
+          "feedback_count": 0,
           "feedback_codes": []
         }
       },

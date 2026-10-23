@@ -60,3 +60,21 @@ def test_환경변수로_탈퇴_유예_설정을_바꾼다(monkeypatch: pytest.M
 
     assert settings.account_grace_days == 7
     assert settings.account_purge_interval_hours == 0
+
+
+def test_챗봇_주소_기본값과_덮어쓰기(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CHATBOT_URL", raising=False)
+    monkeypatch.delenv("CHATBOT_TIMEOUT_SECONDS", raising=False)
+
+    default = get_settings()
+
+    assert default.chatbot_url == "http://momfit-chatbot.team.svc.cluster.local:8000"
+    assert default.chatbot_timeout_seconds == 60.0
+
+    monkeypatch.setenv("CHATBOT_URL", "http://localhost:8100/")
+    monkeypatch.setenv("CHATBOT_TIMEOUT_SECONDS", "30")
+
+    overridden = get_settings()
+
+    assert overridden.chatbot_url == "http://localhost:8100"
+    assert overridden.chatbot_timeout_seconds == 30.0

@@ -34,6 +34,8 @@ PUBLIC_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/api/auth/password/reset"): "로그인하지 못하는 사용자의 비밀번호 재설정",
     ("GET", "/api/auth/kakao/login"): "카카오 인가 페이지로 이동",
     ("GET", "/api/auth/kakao/callback"): "카카오가 사용자를 돌려보내는 주소",
+    ("GET", "/api/chat/health"): "챗봇 서비스 상태 확인(운영 점검용)",
+    ("GET", "/api/chat/ready"): "챗봇과 벡터 DB 연결 확인(운영 점검용)",
 }
 
 # 로그인만 하면 되고 온보딩 완료까지는 요구하지 않는 라우트 (온보딩 자체를 위한 API)

@@ -4,24 +4,27 @@
 """
 
 import json
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from core.clock import utc_now
 from main import app
-from models.agent.agent_feedback import (
-    FEEDBACK_TYPE_DAILY,
-    FEEDBACK_TYPE_STEP,
-    AgentFeedback,
-)
+from models.agent.agent_daily_feedback import AgentDailyFeedback
+from models.agent.agent_step_feedback import AgentStepFeedback
+from models.agent.daily_feedback_source import DailyFeedbackSource
 from models.exercise import Exercise
+from models.exercise_record import ExerciseRecord
 from models.user import User
 from repositories.agent.team_activity_reader import (
     FixtureTeamActivityReader,
     SqlTeamActivityReader,
     get_team_activity_reader,
+    report_date_of,
 )
+from services.agent import daily_report as daily_report_service
 from services.agent.llm import (
     LlmError,
     LlmRateLimitedError,
@@ -38,6 +41,30 @@ FALLBACK_TAIL = "자세한 안내는 잠시 후 다시 확인해 주세요."
 EMPTY_DAY = "2026-10-21"
 RECORD_DAY = "2026-10-19"
 NO_SCORE_DAY = "2026-10-20"
+# 10월 19일 리포트를 다시 보는 날. 이날 오늘은 21일이라 19일은 지난 날짜다.
+VIEW_DAY = "2026-10-21"
+# 10월 19일 기록(evaluated)을 숫자만으로 쓴 지난 날짜 문장
+PAST_SUMMARY = "이날 운동 3회, 자세 배우기 7번 하신 기록이 있어요. 운동 시간은 모두 36분이에요."
+
+
+def _set_today(monkeypatch: pytest.MonkeyPatch, day: str) -> None:
+    monkeypatch.setattr(
+        daily_report_service, "today_kst", lambda: date.fromisoformat(day)
+    )
+
+
+def _set_read_at(monkeypatch: pytest.MonkeyPatch, moment: datetime) -> None:
+    """리포트가 숫자를 세는 시각을 고정한다. (naive UTC)"""
+    monkeypatch.setattr(daily_report_service, "utc_now", lambda: moment)
+
+
+@pytest.fixture(autouse=True)
+def _record_day_is_today(monkeypatch: pytest.MonkeyPatch) -> None:
+    """시나리오 기록 날짜(10월 19일)를 오늘로 본다. 그보다 늦은 날짜는 지난 날짜가 아니라 지금처럼 만든다.
+
+    지난 날짜 규칙은 아래 검사에서 _set_today로 오늘을 옮겨 가며 본다.
+    """
+    _set_today(monkeypatch, RECORD_DAY)
 
 
 class ScriptedLlm:
@@ -106,13 +133,27 @@ def _report(client: TestClient, token: str, day: str | None = RECORD_DAY):
     )
 
 
-def _rows(db: Session, feedback_type: str) -> list[AgentFeedback]:
-    return (
-        db.query(AgentFeedback)
-        .filter(AgentFeedback.feedback_type == feedback_type)
-        .order_by(AgentFeedback.id)
-        .all()
+def _step_rows(db: Session) -> list[AgentStepFeedback]:
+    return db.query(AgentStepFeedback).order_by(AgentStepFeedback.id).all()
+
+
+def _daily_rows(db: Session) -> list[AgentDailyFeedback]:
+    return db.query(AgentDailyFeedback).order_by(AgentDailyFeedback.id).all()
+
+
+def _agent_row_count(db: Session) -> int:
+    """에이전트 테이블 셋의 행 수를 모두 더한다."""
+    return sum(
+        db.query(model).count()
+        for model in (AgentStepFeedback, AgentDailyFeedback, DailyFeedbackSource)
     )
+
+
+def _touch_exercise_record(db: Session, moment: datetime | None = None) -> None:
+    """리포트를 만든 뒤 그날 운동 기록 하나가 바뀌었다고 본다(예: 일시정지했다가 나중에 완료)."""
+    record = db.query(ExerciseRecord).order_by(ExerciseRecord.id).first()
+    record.modified_at = moment or utc_now() + timedelta(minutes=1)
+    db.commit()
 
 
 def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_저장한다(
@@ -134,7 +175,7 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
     }
     assert body["provider"] == "fake"
     assert body["model"] == "fake-1"
-    assert body["prompt_version"] == "daily-v2"
+    assert body["prompt_version"] == "daily-v3"
     assert body["latency_ms"] is not None
     assert body["stats"]["record_count"] == 3
     assert body["stats"]["completed_count"] == 3
@@ -145,11 +186,12 @@ def test_기록이_있으면_한마디와_다음_집중_스텝을_돌려주고_�
         {"completed_sets": 8, "target_sets": 10},
     ]
     assert [step["pass_count"] for step in body["stats"]["steps"]] == [2, 1]
-    # STEP 메모와 DAILY가 함께 저장된다.
-    assert len(_rows(db_session, FEEDBACK_TYPE_STEP)) == 2
-    daily = _rows(db_session, FEEDBACK_TYPE_DAILY)
+    # 스텝 메모와 일일 리포트가 함께 저장되고, 한마디가 참고한 메모 둘이 연결된다.
+    assert len(_step_rows(db_session)) == 2
+    daily = _daily_rows(db_session)
     assert len(daily) == 1
-    assert "다음 집중 스텝: 오른쪽 스텝" in daily[0].today_summary
+    assert "다음 집중 스텝: 왼쪽 다리 들기" in daily[0].today_summary
+    assert db_session.query(DailyFeedbackSource).count() == 2
 
 
 def test_응답에는_대체_이유를_넣지_않는다(
@@ -187,7 +229,7 @@ def test_후보가_없는_날은_다음_집중_스텝이_비고_대체_문장으
     assert FALLBACK_TAIL not in body["summary"]
     # 점수도 판정도 없는 날은 후보가 0개인 게 정상이다.
     assert body["stats"]["steps"][0]["last_score"] is None
-    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
+    assert len(_daily_rows(db_session)) == 1
 
 
 def test_기록이_없는_날은_LLM을_부르지_않고_저장하지_않는다(
@@ -206,7 +248,7 @@ def test_기록이_없는_날은_LLM을_부르지_않고_저장하지_않는다(
     assert body["prompt_version"] is None
     assert body["latency_ms"] is None
     assert body["stats"]["record_count"] == 0
-    assert db_session.query(AgentFeedback).count() == 0
+    assert _agent_row_count(db_session) == 0
 
 
 def test_건강정보_동의가_없으면_LLM을_부르지_않고_대체_문장을_쓴다(
@@ -225,7 +267,7 @@ def test_건강정보_동의가_없으면_LLM을_부르지_않고_대체_문장�
     assert body["provider"] is None
     assert FALLBACK_TAIL in body["summary"]
     assert body["next_focus"] is None
-    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
+    assert len(_daily_rows(db_session)) == 1
 
 
 @pytest.mark.parametrize(
@@ -254,9 +296,53 @@ def test_출력_검사나_호출이_실패하면_대체_문장을_쓴다(
     assert body["next_focus"] is None
     # LLM을 불렀으니 실제로 부른 값은 채운다.
     assert body["provider"] == "fake"
-    assert body["prompt_version"] == "daily-v2"
-    # 대체 문장도 화면에 보여 준 한마디라서 저장한다.
-    assert len(_rows(db_session, FEEDBACK_TYPE_DAILY)) == 1
+    assert body["prompt_version"] == "daily-v3"
+    # 대체 문장도 화면에 보여 준 한마디라서 저장한다. 숫자만으로 썼으니 스텝 메모는 잇지 않는다.
+    assert len(_daily_rows(db_session)) == 1
+    assert db_session.query(DailyFeedbackSource).count() == 0
+
+
+def _daily_with_row_length(length: int) -> str:
+    """저장할 today_summary(한마디 + 다음 집중 스텝 줄)가 정확히 length자가 되는 DAILY 답."""
+    reason = "이 스텝에 신경 써 봐요."
+    # 스텝 12의 이름은 fixtures/catalog.json의 '왼쪽 다리 들기'다.
+    focus_line = f"{daily_report_service.FOCUS_LINE}왼쪽 다리 들기{daily_report_service.FOCUS_REASON_SEPARATOR}{reason}"
+    head = "오늘도 꾸준히 해 주셨어요."
+    summary = head + "요" * (length - len(focus_line) - len(head))
+    return json.dumps(
+        {"summary": summary, "next_focus": {"step_id": 12, "reason": reason}},
+        ensure_ascii=False,
+    )
+
+
+def test_저장할_문장이_255자를_넘으면_대체_문장을_쓴다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(daily=_daily_with_row_length(256)))
+
+    body = _report(client, token).json()
+
+    # 팀 최종 ERD의 today_summary는 VARCHAR(255)라 MySQL이 거부하거나 잘린다. 저장 전에 거른다.
+    assert FALLBACK_TAIL in body["summary"]
+    assert body["next_focus"] is None
+    (daily,) = _daily_rows(db_session)
+    assert len(daily.today_summary) <= 255
+    assert db_session.query(DailyFeedbackSource).count() == 0
+
+
+def test_저장할_문장이_딱_255자면_그대로_쓴다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(daily=_daily_with_row_length(255)))
+
+    body = _report(client, token).json()
+
+    assert FALLBACK_TAIL not in body["summary"]
+    assert body["next_focus"]["step_id"] == 12
+    (daily,) = _daily_rows(db_session)
+    assert len(daily.today_summary) == 255
 
 
 def test_안전_안내는_모든_응답에_들어간다(
@@ -287,37 +373,59 @@ def test_날짜를_비우면_오늘로_본다(
     assert body["date"] == today_kst().isoformat()
 
 
-def test_같은_날_다시_요청하면_새_행이_쌓인다(
-    client: TestClient, db_session: Session
-) -> None:
-    token = _token(client)
-    _use(db_session, ScriptedLlm())
-
-    _report(client, token)
-    _report(client, token)
-
-    rows = _rows(db_session, FEEDBACK_TYPE_DAILY)
-    assert len(rows) == 2
-    assert rows[-1].id > rows[0].id
-
-
-def test_두_번째_요청은_STEP_메모를_다시_쓰지_않는다(
+def test_오늘_다시_요청해도_기록이_그대로면_LLM_없이_저장한_리포트를_돌려준다(
     client: TestClient, db_session: Session
 ) -> None:
     token = _token(client)
     llm = ScriptedLlm()
     _use(db_session, llm)
+    first = _report(client, token).json()
+    calls = len(llm.calls)
 
+    second = _report(client, token).json()
+
+    assert second["summary"] == first["summary"]
+    assert second["next_focus"] == first["next_focus"]
+    assert second["stats"] == first["stats"]
+    assert len(llm.calls) == calls
+    assert second["provider"] is None
+    assert len(_daily_rows(db_session)) == 1
+
+
+def test_운동_기록만_바뀌면_DAILY만_다시_부르고_STEP_메모는_다시_쓰지_않는다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
     _report(client, token)
     first_calls = len(llm.calls)
+    _touch_exercise_record(db_session)
+
     _report(client, token)
 
     # 첫 요청은 STEP 묶음 1번 + DAILY 1번, 두 번째 요청은 DAILY 1번만 부른다.
     assert first_calls == 2
     assert len(llm.calls) == 3
+    assert len(_daily_rows(db_session)) == 2
 
 
-def test_가짜_기록_모드는_agent_feedback을_읽지도_쓰지도_않는다(
+def test_오늘_대체_문장이었으면_다시_요청할_때_LLM을_다시_부른다(
+    client: TestClient, db_session: Session
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(error=LlmTimeoutError("시간 초과")))
+    assert FALLBACK_TAIL in _report(client, token).json()["summary"]
+    _use(db_session, ScriptedLlm())
+
+    body = _report(client, token).json()
+
+    # 대체 문장은 '잠시 후 다시 확인해 주세요'라고 했으니 다시 만든다.
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert len(_daily_rows(db_session)) == 2
+
+
+def test_가짜_기록_모드는_에이전트_테이블을_읽지도_쓰지도_않는다(
     client: TestClient, db_session: Session
 ) -> None:
     token = _token(client)
@@ -334,9 +442,178 @@ def test_가짜_기록_모드는_agent_feedback을_읽지도_쓰지도_않는다
     assert first.status_code == second.status_code == 200
     assert first.json()["summary"] == "오늘도 꾸준히 해 주셨어요."
     assert first.json()["next_focus"]["step_id"] == 12
-    assert db_session.query(AgentFeedback).count() == 0
+    assert _agent_row_count(db_session) == 0
     # 저장한 메모가 없으니 요청마다 STEP 묶음 1번 + DAILY 1번을 부른다.
     assert len(llm.calls) == 4
+
+
+def test_지난_날짜는_그날_만든_리포트를_LLM_없이_그대로_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    made = _report(client, token).json()
+    calls = len(llm.calls)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    seen = _report(client, token).json()
+
+    assert seen["summary"] == made["summary"]
+    assert seen["next_focus"] == made["next_focus"] == {
+        "step_id": 12,
+        "reason": "다음에는 이 스텝에 조금 더 신경 써 봐요.",
+    }
+    assert seen["stats"] == made["stats"]
+    assert len(llm.calls) == calls
+    assert seen["provider"] is None
+    assert seen["prompt_version"] is None
+    assert seen["latency_ms"] is None
+    # 지난 날짜는 새로 저장하지 않는다.
+    assert len(_daily_rows(db_session)) == 1
+
+
+def test_지난_날짜는_그날_마지막으로_만든_리포트를_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _set_read_at(monkeypatch, datetime(2026, 10, 19, 5, 0))
+    _use(db_session, ScriptedLlm())
+    _report(client, token)
+    # 첫 리포트 뒤 기록이 바뀌어서, 그날 리포트를 한 번 더 만들었다.
+    _touch_exercise_record(db_session, datetime(2026, 10, 19, 5, 10))
+    _set_read_at(monkeypatch, datetime(2026, 10, 19, 5, 20))
+    _use(
+        db_session,
+        ScriptedLlm(daily='{"summary": "오늘도 차근차근 해 주셨어요.", "next_focus": null}'),
+    )
+    _report(client, token)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == "오늘도 차근차근 해 주셨어요."
+    assert body["next_focus"] is None
+    assert len(_daily_rows(db_session)) == 2
+
+
+def test_지난_날짜에_리포트가_없으면_LLM_없이_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == PAST_SUMMARY
+    assert body["next_focus"] is None
+    assert body["stats"]["record_count"] == 3
+    assert llm.calls == []
+    assert _agent_row_count(db_session) == 0
+
+
+def test_리포트를_만든_뒤_기록이_바뀌었으면_지난_날짜는_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+    _report(client, token)
+    calls = len(llm.calls)
+    _touch_exercise_record(db_session)
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # 저장한 한마디는 바뀌기 전 기록으로 썼으니, 다시 센 숫자와 어긋나지 않게 숫자만 보여 준다.
+    assert body["summary"] == PAST_SUMMARY
+    assert body["next_focus"] is None
+    assert len(llm.calls) == calls
+
+
+def test_그날_대체_문장이었으면_지난_날짜는_숫자만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm(error=LlmTimeoutError("시간 초과")))
+    assert FALLBACK_TAIL in _report(client, token).json()["summary"]
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # '잠시 후 다시 확인해 주세요'는 다시 만들지 않는 지난 날짜에서 지킬 수 없다.
+    assert body["summary"] == PAST_SUMMARY
+
+
+def test_저장한_다음_집중_스텝이_그날_스텝에_없으면_한마디만_돌려준다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm())
+    db_session.add(
+        AgentDailyFeedback(
+            user_id=db_session.query(User).one().id,
+            today_summary="오늘도 꾸준히 해 주셨어요.\n다음 집중 스텝: 없는 스텝 — 이유",
+            report_date=report_date_of(date.fromisoformat(RECORD_DAY)),
+            created_at=utc_now(),
+        )
+    )
+    db_session.commit()
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert body["next_focus"] is None
+
+
+def test_지난_날짜에_기록이_없으면_이날_문장을_쓴다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    _use(db_session, llm)
+
+    _set_today(monkeypatch, "2026-10-22")
+    body = _report(client, token, VIEW_DAY).json()
+
+    assert body["summary"] == "이날은 운동 기록이 없어요."
+    assert llm.calls == []
+
+
+def test_가짜_기록_모드는_지난_날짜도_새로_만든다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    llm = ScriptedLlm()
+    app.dependency_overrides[get_llm_client] = lambda: llm
+    app.dependency_overrides[get_team_activity_reader] = (
+        lambda: FixtureTeamActivityReader.from_scenario("evaluated")
+    )
+
+    _set_today(monkeypatch, VIEW_DAY)
+    body = _report(client, token).json()
+
+    # 가짜 기록은 저장한 리포트가 없어서, 지난 날짜 규칙 없이 그날을 오늘로 보고 만든다.
+    assert body["summary"] == "오늘도 꾸준히 해 주셨어요."
+    assert len(llm.calls) == 2
+
+
+def test_리포트_행에는_저장_시각이_아니라_숫자를_센_시각을_남긴다(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = _token(client)
+    _use(db_session, ScriptedLlm())
+    # 10월 19일 기록은 03:12(UTC)에 마지막으로 바뀌었다. 그 뒤인 05:00에 숫자를 셌다고 본다.
+    read_at = datetime(2026, 10, 19, 5, 0, 0)
+    _set_read_at(monkeypatch, read_at)
+
+    _report(client, token)
+
+    # LLM을 기다리는 동안 기록이 바뀌면 그 시각은 read_at보다 늦다. 저장 시각을 남기면 놓친다.
+    assert _daily_rows(db_session)[0].created_at == read_at
 
 
 def test_로그인하지_않으면_401이다(client: TestClient) -> None:
