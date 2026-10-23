@@ -1,0 +1,2 @@
+# 환경 점검 API 선택 의존성. requirements.txt를 먼저 설치한 뒤 설치한다.
+ultralytics==8.3.246
